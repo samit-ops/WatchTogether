@@ -26,15 +26,21 @@ export function Navbar() {
           <nav className="flex items-center space-x-4">
             {user ? (
               <div className="flex items-center gap-4">
-                <span className="text-sm text-muted hidden sm:inline-block">
+                <Link to="/watch-party/create" className="text-sm font-medium hover:text-primary transition-colors hidden sm:block">
+                  Watch Party
+                </Link>
+                <Link to="/library" className="text-sm font-medium hover:text-primary transition-colors hidden sm:block">
+                  My Library
+                </Link>
+                <span className="text-sm text-muted hidden lg:inline-block ml-2 border-l border-border pl-4">
                   Welcome, {user.name}
                 </span>
-                <Link to="/profile" className="text-muted hover:text-primary transition-colors">
+                <Link to="/profile" className="text-muted hover:text-primary transition-colors ml-2">
                   <User className="h-5 w-5" />
                 </Link>
                 <Button variant="ghost" size="sm" onClick={handleLogout} className="text-red-400 hover:text-red-500 hover:bg-red-500/10">
-                  <LogOut className="h-4 w-4 mr-2" />
-                  Logout
+                  <LogOut className="h-4 w-4 sm:mr-2" />
+                  <span className="hidden sm:inline">Logout</span>
                 </Button>
               </div>
             ) : (
