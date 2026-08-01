@@ -143,23 +143,37 @@ export function CustomVideoPlayer({
   };
 
   const handleTimeUpdate = () => {
+    if (!videoRef.current) return;
     const current = videoRef.current.currentTime;
-    const dur = videoRef.current.duration || 0;
+    const dur = videoRef.current.duration;
     setCurrentTime(current);
-    setProgress((current / dur) * 100);
+    if (dur && !isNaN(dur) && dur > 0 && duration !== dur) {
+      setDuration(dur);
+    }
   };
 
   const handleLoadedMetadata = () => {
-    setDuration(videoRef.current.duration);
+    if (videoRef.current && videoRef.current.duration) {
+      setDuration(videoRef.current.duration);
+    }
   };
+
+  const realDuration = (videoRef.current && !isNaN(videoRef.current.duration) && videoRef.current.duration > 0)
+    ? videoRef.current.duration
+    : duration;
+
+  const currentProgress = realDuration > 0 ? (currentTime / realDuration) * 100 : 0;
 
   const handleProgressChange = (e) => {
     if (isWatchParty && !isController) return;
-    const newTime = (e.target.value / 100) * duration;
-    videoRef.current.currentTime = newTime;
-    setProgress(e.target.value);
-    if (isWatchParty && isController && !remoteSyncingRef.current) {
-      socket?.emit('seek', { roomId, currentTime: newTime });
+    const val = parseFloat(e.target.value);
+    if (realDuration > 0 && videoRef.current) {
+      const newTime = (val / 100) * realDuration;
+      videoRef.current.currentTime = newTime;
+      setCurrentTime(newTime);
+      if (isWatchParty && isController && !remoteSyncingRef.current) {
+        socket?.emit('seek', { roomId, currentTime: newTime });
+      }
     }
   };
 
@@ -259,10 +273,12 @@ export function CustomVideoPlayer({
           toggleMute();
           break;
         case 'arrowright':
-          skip(5);
+          e.preventDefault();
+          skip(10);
           break;
         case 'arrowleft':
-          skip(-5);
+          e.preventDefault();
+          skip(-10);
           break;
         case 'arrowup':
           e.preventDefault();
@@ -346,30 +362,35 @@ export function CustomVideoPlayer({
 
       <div 
         className={cn(
-          "absolute bottom-0 left-0 right-0 p-4 pt-16 bg-gradient-to-t from-black/90 via-black/40 to-transparent transition-opacity duration-300 flex flex-col gap-2",
+          "absolute bottom-0 left-0 right-0 p-4 pt-12 bg-gradient-to-t from-black/90 via-black/50 to-transparent transition-opacity duration-300 flex flex-col gap-3",
           showControls || !isPlaying ? "opacity-100" : "opacity-0 pointer-events-none"
         )}
         onClick={(e) => e.stopPropagation()} 
       >
-        <div className={cn("relative h-1.5 flex-1 rounded-full bg-white/20 transition-all", isController ? "cursor-pointer group/progress hover:h-2" : "opacity-70")}>
-          <div 
-            className="absolute top-0 left-0 h-full bg-primary rounded-full"
-            style={{ width: `${progress}%` }}
-          />
-          {isController && (
-            <input
-              type="range"
-              min="0"
-              max="100"
-              value={progress || 0}
-              onChange={handleProgressChange}
-              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+        {/* Video Progress Bar */}
+        <div className="w-full flex items-center gap-2 group/progress">
+          <div className={cn("relative h-2 flex-1 rounded-full bg-white/20 transition-all overflow-hidden", isController && "cursor-pointer group-hover/progress:h-2.5")}>
+            <div 
+              className="absolute top-0 left-0 h-full bg-primary rounded-full transition-all duration-75"
+              style={{ width: `${Math.min(100, Math.max(0, currentProgress))}%` }}
             />
-          )}
+            {isController && (
+              <input
+                type="range"
+                min="0"
+                max="100"
+                step="0.1"
+                value={currentProgress || 0}
+                onChange={handleProgressChange}
+                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+              />
+            )}
+          </div>
         </div>
         
-        <div className="flex items-center justify-between text-white pt-1">
-          <div className="flex items-center gap-4">
+        {/* Control Buttons Row */}
+        <div className="flex items-center justify-between text-white">
+          <div className="flex items-center gap-3">
             <button 
               onClick={togglePlay} 
               disabled={!isController && isWatchParty}
@@ -395,7 +416,8 @@ export function CustomVideoPlayer({
               <SkipForward className="h-4 w-4" />
             </button>
 
-            <div className="flex items-center gap-2 group/volume">
+            {/* Volume Control */}
+            <div className="flex items-center gap-2">
               <button onClick={toggleMute} className="hover:text-primary transition-colors focus:outline-none">
                 {isMuted || volume === 0 ? <VolumeX className="h-5 w-5" /> : <Volume2 className="h-5 w-5" />}
               </button>
@@ -406,11 +428,11 @@ export function CustomVideoPlayer({
                 step="0.05"
                 value={isMuted ? 0 : volume}
                 onChange={handleVolumeChange}
-                className="w-0 sm:w-20 opacity-0 sm:opacity-100 transition-all origin-left cursor-pointer accent-primary"
+                className="w-16 sm:w-20 h-1 accent-primary cursor-pointer rounded-lg bg-white/20"
               />
             </div>
             
-            <div className="text-xs font-medium font-mono hidden sm:block">
+            <div className="text-xs font-medium font-mono ml-1">
               {formatTime(currentTime)} / {formatTime(duration)}
             </div>
           </div>

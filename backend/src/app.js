@@ -31,6 +31,7 @@ app.use('/api', apiLimiter);
 const authRoutes = require('./routes/authRoutes');
 const videoRoutes = require('./routes/videoRoutes');
 const roomRoutes = require('./routes/roomRoutes');
+const downloadRoutes = require('./routes/downloadRoutes');
 
 // Body Parsing & Logging
 app.use(express.json({ limit: '10kb' }));
@@ -43,6 +44,7 @@ if (process.env.NODE_ENV === 'development') {
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/videos', videoRoutes);
 app.use('/api/v1/rooms', roomRoutes);
+app.use('/api/v1/downloads', downloadRoutes);
 
 // Health Check Endpoint
 app.get('/health', (req, res) => {

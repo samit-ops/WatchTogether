@@ -4,19 +4,57 @@ import videoService from '@/services/video.service';
 import { CustomVideoPlayer } from '@/components/video/CustomVideoPlayer';
 import { Loader } from '@/components/ui/Loader';
 import { VideoCard } from '@/components/video/VideoCard';
-import { ThumbsUp, Share2, Plus, Flag } from 'lucide-react';
+import { ThumbsUp, Share2, Plus, Flag, Download } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
+import { useNavigate } from 'react-router-dom';
+import downloadService from '@/services/download.service';
+import { toast } from '@/utils/toast';
 
 export default function VideoDetails() {
   const { id } = useParams();
+  const navigate = useNavigate();
+  const { user } = useAuth();
+
   const [video, setVideo] = useState(null);
   const [relatedVideos, setRelatedVideos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [toastMsg, setToastMsg] = useState('');
+  const [downloading, setDownloading] = useState(false);
 
   const showToast = (msg) => {
     setToastMsg(msg);
     setTimeout(() => setToastMsg(''), 3000);
+  };
+
+  const handleDownload = async () => {
+    if (!user) {
+      toast.info('Please log in to download videos.');
+      navigate(`/login?redirect=/video/${id}`);
+      return;
+    }
+
+    setDownloading(true);
+    try {
+      const res = await downloadService.downloadVideo(id, video?.title);
+      
+      if (!res.success && (res.limitReached !== undefined || res.usedToday >= res.limit)) {
+        toast.error(res.message || `Daily download limit reached (${res.usedToday}/${res.limit})`);
+        return;
+      }
+
+      if (res.data?.video?.videoUrl || res.video?.videoUrl || res.success) {
+        toast.success(`Download started! Daily usage: ${res.data?.usedToday || res.usedToday || 1}/${res.data?.limit || res.limit || 1}`);
+      } else {
+        toast.error(res.message || 'Could not initiate download');
+      }
+    } catch (err) {
+      console.error('Download Error:', err);
+      const msg = err.response?.data?.message || err.message || 'Download failed';
+      toast.error(msg);
+    } finally {
+      setDownloading(false);
+    }
   };
 
   const handleShare = async () => {
@@ -134,10 +172,18 @@ export default function VideoDetails() {
                 </button>
                 <button 
                   onClick={handleShare}
-                  className="flex items-center gap-2 px-4 py-2 rounded-full bg-surface hover:bg-primary hover:text-white transition-colors whitespace-nowrap text-sm font-medium"
+                  className="flex items-center gap-2 px-4 py-2 rounded-full bg-surface hover:bg-surface-light transition-colors whitespace-nowrap text-sm font-medium"
                 >
                   <Share2 className="h-4 w-4" />
                   Share
+                </button>
+                <button 
+                  onClick={handleDownload}
+                  disabled={downloading}
+                  className="flex items-center gap-2 px-4 py-2 rounded-full bg-primary text-white hover:bg-blue-600 transition-colors whitespace-nowrap text-sm font-medium disabled:opacity-50"
+                >
+                  <Download className="h-4 w-4" />
+                  {downloading ? 'Downloading...' : 'Download'}
                 </button>
                 <button 
                   onClick={() => showToast('Coming Soon')}

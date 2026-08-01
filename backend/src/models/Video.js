@@ -39,6 +39,15 @@ const videoSchema = new mongoose.Schema(
       required: [true, 'Please select a category'],
       enum: ['Movies', 'TV Shows', 'Documentaries', 'Anime', 'Sports', 'Other'],
     },
+    source: {
+      type: String,
+      enum: ['platform', 'user'],
+      default: 'user',
+    },
+    isPublic: {
+      type: Boolean,
+      default: true,
+    },
     tags: {
       type: [String],
       default: [],

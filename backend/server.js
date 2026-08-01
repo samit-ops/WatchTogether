@@ -5,10 +5,13 @@ const env = require('./src/config/env');
 const logger = require('./src/config/logger');
 const mongoose = require('mongoose');
 
+const seedPlatformVideos = require('./src/seeds/seedPlatformVideos');
+
 // Connect to Database and start server
 const startServer = async () => {
   // Ensure DB connects before server starts accepting traffic
   await connectDB();
+  await seedPlatformVideos();
   const http = require('http');
   const httpServer = http.createServer(app);
   

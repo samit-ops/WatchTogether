@@ -192,3 +192,17 @@ exports.deleteVideo = asyncHandler(async (req, res, next) => {
     new ApiResponse(httpStatus.OK, {}, 'Video removed')
   );
 });
+
+// @desc    Get platform videos (admin uploaded)
+// @route   GET /api/v1/videos/platform
+// @access  Public
+exports.getPlatformVideos = asyncHandler(async (req, res, next) => {
+  const videos = await Video.find({ source: 'platform' })
+    .populate('uploadedBy', 'name avatar')
+    .sort('-createdAt');
+
+  res.status(httpStatus.OK).json(
+    new ApiResponse(httpStatus.OK, { videos })
+  );
+});
+

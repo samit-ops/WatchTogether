@@ -32,6 +32,9 @@ export function Navbar() {
                 <Link to="/library" className="text-sm font-medium hover:text-primary transition-colors hidden sm:block">
                   My Library
                 </Link>
+                <Link to="/downloads" className="text-sm font-medium hover:text-primary transition-colors hidden sm:block">
+                  Downloads
+                </Link>
                 <span className="text-sm text-muted hidden lg:inline-block ml-2 border-l border-border pl-4">
                   Welcome, {user.name}
                 </span>

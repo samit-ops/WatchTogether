@@ -5,7 +5,8 @@ const {
   uploadVideo, 
   updateVideo, 
   deleteVideo, 
-  incrementViews 
+  incrementViews,
+  getPlatformVideos
 } = require('../controllers/videoController');
 const { protect } = require('../middleware/authMiddleware');
 const upload = require('../middleware/uploadMiddleware');
@@ -13,6 +14,7 @@ const upload = require('../middleware/uploadMiddleware');
 const router = express.Router();
 
 router.get('/', getVideos);
+router.get('/platform', getPlatformVideos);
 router.get('/:id', getVideo);
 router.put('/:id/view', incrementViews);
 
