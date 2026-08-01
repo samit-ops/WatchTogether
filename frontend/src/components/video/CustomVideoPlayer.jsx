@@ -1,19 +1,22 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { 
   Play, Pause, Volume2, VolumeX, Maximize, Minimize, 
-  Settings, SkipBack, SkipForward
+  Settings, RotateCcw, RotateCw, SkipForward, X, RefreshCw
 } from 'lucide-react';
 import { cn } from '@/utils/cn';
+import { Loader } from '@/components/ui/Loader';
 import { useSocket } from '@/contexts/SocketContext';
 
 export function CustomVideoPlayer({ 
   src, poster, onEnded, isWatchParty = false, isHost = false, 
-  roomId = null, playbackPermission = 'host', currentUserId = null
+  roomId = null, playbackPermission = 'host', currentUserId = null,
+  nextVideo = null, onNextVideo = null
 }) {
   const videoRef = useRef(null);
   const containerRef = useRef(null);
   
   const [isPlaying, setIsPlaying] = useState(false);
+  const [isBuffering, setIsBuffering] = useState(false);
   const [progress, setProgress] = useState(0);
   const [volume, setVolume] = useState(1);
   const [isMuted, setIsMuted] = useState(false);
@@ -24,6 +27,16 @@ export function CustomVideoPlayer({
   const [showSettings, setShowSettings] = useState(false);
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
   const [isLooping, setIsLooping] = useState(false);
+  
+  // Double tap gesture feedback (-10s / +10s overlay)
+  const [gestureOverlay, setGestureOverlay] = useState(null); // { type: 'rewind' | 'forward', key: number }
+  const [lastTapTime, setLastTapTime] = useState(0);
+
+  // Next video auto-play overlay
+  const [showNextOverlay, setShowNextOverlay] = useState(false);
+  const [nextCountdown, setNextCountdown] = useState(5);
+  const countdownTimerRef = useRef(null);
+
   const pipSupported = typeof document !== 'undefined' && document.pictureInPictureEnabled;
   
   const remoteSyncingRef = useRef(false);
@@ -31,6 +44,7 @@ export function CustomVideoPlayer({
 
   const isController = playbackPermission === 'everyone' ? true : isHost;
 
+  // Socket synchronization for Watch Party mode
   useEffect(() => {
     if (!socket || !isWatchParty) return;
 
@@ -126,6 +140,9 @@ export function CustomVideoPlayer({
   
   const togglePlay = () => {
     if (isWatchParty && !isController) return;
+    if (showNextOverlay) {
+      cancelNextOverlay();
+    }
     
     if (videoRef.current.paused) {
       videoRef.current.play().catch(e => console.log("Play interrupted", e));
@@ -156,6 +173,7 @@ export function CustomVideoPlayer({
     if (videoRef.current && videoRef.current.duration) {
       setDuration(videoRef.current.duration);
     }
+    setIsBuffering(false);
   };
 
   const realDuration = (videoRef.current && !isNaN(videoRef.current.duration) && videoRef.current.duration > 0)
@@ -178,6 +196,7 @@ export function CustomVideoPlayer({
   };
 
   const toggleMute = () => {
+    if (!videoRef.current) return;
     videoRef.current.muted = !isMuted;
     setIsMuted(!isMuted);
     if (isMuted) videoRef.current.volume = volume || 0.5;
@@ -185,6 +204,7 @@ export function CustomVideoPlayer({
   };
 
   const handleVolumeChange = (e) => {
+    if (!videoRef.current) return;
     const newVol = parseFloat(e.target.value);
     videoRef.current.volume = newVol;
     setVolume(newVol);
@@ -244,12 +264,19 @@ export function CustomVideoPlayer({
 
   const skip = (amount) => {
     if (isWatchParty && !isController) return;
-    videoRef.current.currentTime += amount;
+    if (!videoRef.current) return;
+    videoRef.current.currentTime = Math.max(0, Math.min(realDuration, videoRef.current.currentTime + amount));
     if (isWatchParty && isController && !remoteSyncingRef.current) {
       socket?.emit('seek', { roomId, currentTime: videoRef.current.currentTime });
     }
+    
+    // Trigger visual ripple gesture indicator
+    const type = amount < 0 ? 'rewind' : 'forward';
+    setGestureOverlay({ type, key: Date.now() });
+    setTimeout(() => setGestureOverlay(null), 800);
   };
 
+  // Keyboard shortcut listener
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (['INPUT', 'TEXTAREA'].includes(document.activeElement?.tagName)) return;
@@ -284,38 +311,75 @@ export function CustomVideoPlayer({
           e.preventDefault();
           const upVol = Math.min(volume + 0.1, 1);
           setVolume(upVol);
-          videoRef.current.volume = upVol;
+          if (videoRef.current) videoRef.current.volume = upVol;
           if (upVol > 0) setIsMuted(false);
           break;
         case 'arrowdown':
           e.preventDefault();
           const downVol = Math.max(volume - 0.1, 0);
           setVolume(downVol);
-          videoRef.current.volume = downVol;
+          if (videoRef.current) videoRef.current.volume = downVol;
           if (downVol === 0) setIsMuted(true);
           break;
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isPlaying, volume, isFullscreen, isController]);
+  }, [isPlaying, volume, isFullscreen, isController, realDuration]);
 
-  const [lastTap, setLastTap] = useState(0);
-  
-  const handleTouchEnd = (e) => {
-    const currentTimeTap = new Date().getTime();
-    const tapLength = currentTimeTap - lastTap;
-    if (tapLength < 500 && tapLength > 0) {
-      const touchX = e.changedTouches[0].clientX;
-      const screenWidth = window.innerWidth;
-      if (touchX > screenWidth / 2) {
-        skip(10);
+  // Touch / Mobile double tap gesture handler
+  const handleContainerClick = (e) => {
+    const now = Date.now();
+    const tapDelay = now - lastTapTime;
+
+    if (tapDelay < 300 && tapDelay > 0) {
+      // Double tap detected
+      const rect = containerRef.current.getBoundingClientRect();
+      const clickX = e.clientX - rect.left;
+      const width = rect.width;
+
+      if (clickX > width / 2) {
+        skip(10); // Double tap right -> forward 10s
       } else {
-        skip(-10);
+        skip(-10); // Double tap left -> rewind 10s
       }
-      e.preventDefault();
+    } else {
+      // Single click toggle play
+      togglePlay();
     }
-    setLastTap(currentTimeTap);
+
+    setLastTapTime(now);
+  };
+
+  // Video completion & Next Video Countdown handler
+  const handleVideoEnded = () => {
+    setIsPlaying(false);
+    if (onEnded) onEnded();
+    if (isWatchParty && isController) {
+      socket?.emit('video-ended', { roomId });
+    }
+
+    if (nextVideo && onNextVideo) {
+      setShowNextOverlay(true);
+      setNextCountdown(5);
+      
+      clearInterval(countdownTimerRef.current);
+      let count = 5;
+      countdownTimerRef.current = setInterval(() => {
+        count -= 1;
+        setNextCountdown(count);
+        if (count <= 0) {
+          clearInterval(countdownTimerRef.current);
+          setShowNextOverlay(false);
+          onNextVideo();
+        }
+      }, 1000);
+    }
+  };
+
+  const cancelNextOverlay = () => {
+    clearInterval(countdownTimerRef.current);
+    setShowNextOverlay(false);
   };
 
   const formatTime = (timeInSeconds) => {
@@ -328,12 +392,12 @@ export function CustomVideoPlayer({
   return (
     <div 
       ref={containerRef}
-      className="relative group w-full aspect-video bg-black rounded-2xl overflow-hidden shadow-2xl flex items-center justify-center"
+      className="relative group w-full aspect-video bg-black rounded-2xl overflow-hidden shadow-2xl flex items-center justify-center select-none"
       onMouseMove={handleMouseMove}
       onMouseLeave={() => isPlaying && setShowControls(false)}
-      onTouchEnd={handleTouchEnd}
-      onClick={togglePlay}
+      onClick={handleContainerClick}
     >
+      {/* HTML5 Video element */}
       <video
         ref={videoRef}
         src={src}
@@ -341,33 +405,102 @@ export function CustomVideoPlayer({
         className={cn("w-full h-full object-contain cursor-pointer", !isController && "cursor-default")}
         onTimeUpdate={handleTimeUpdate}
         onLoadedMetadata={handleLoadedMetadata}
-        onEnded={() => { 
-          setIsPlaying(false); 
-          if(onEnded) onEnded(); 
-          if(isWatchParty && isController) {
-            socket?.emit('video-ended', { roomId });
-          }
-        }}
-        onClick={(e) => { e.stopPropagation(); togglePlay(); }}
+        onWaiting={() => setIsBuffering(true)}
+        onPlaying={() => setIsBuffering(false)}
+        onCanPlay={() => setIsBuffering(false)}
+        onSeeking={() => setIsBuffering(true)}
+        onSeeked={() => setIsBuffering(false)}
+        onEnded={handleVideoEnded}
+        onClick={(e) => { e.stopPropagation(); }}
         playsInline
       />
-      
-      {!isPlaying && (
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none bg-black/20">
-          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary/90 shadow-xl backdrop-blur-md transform transition-transform group-hover:scale-110">
-            <Play className="h-8 w-8 fill-white text-white ml-1" />
+
+      {/* Buffering Loader Overlay */}
+      {isBuffering && (
+        <div className="absolute inset-0 flex items-center justify-center bg-black/40 backdrop-blur-xs pointer-events-none z-30">
+          <Loader size={54} className="text-primary animate-spin" />
+        </div>
+      )}
+
+      {/* Gesture Double Tap Indicator (-10s / +10s) */}
+      {gestureOverlay && (
+        <div 
+          className={cn(
+            "absolute top-1/2 -translate-y-1/2 flex flex-col items-center justify-center w-28 h-28 rounded-full bg-black/70 backdrop-blur-md text-white border border-white/20 z-40 pointer-events-none transition-all duration-300 animate-in fade-in zoom-in-75",
+            gestureOverlay.type === 'rewind' ? "left-12" : "right-12"
+          )}
+        >
+          {gestureOverlay.type === 'rewind' ? (
+            <>
+              <RotateCcw className="w-8 h-8 text-primary mb-1 animate-spin-reverse" />
+              <span className="text-sm font-bold font-mono">-10 sec</span>
+            </>
+          ) : (
+            <>
+              <RotateCw className="w-8 h-8 text-primary mb-1 animate-spin" />
+              <span className="text-sm font-bold font-mono">+10 sec</span>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* Center Big Play Icon when Paused */}
+      {!isPlaying && !isBuffering && !showNextOverlay && (
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none bg-black/30 transition-opacity">
+          <div className="flex h-20 w-20 items-center justify-center rounded-full bg-primary/90 shadow-2xl backdrop-blur-md transform transition-transform group-hover:scale-110">
+            <Play className="h-10 w-10 fill-white text-white ml-1.5" />
           </div>
         </div>
       )}
 
+      {/* Auto-Play Next Video Overlay */}
+      {showNextOverlay && nextVideo && (
+        <div 
+          className="absolute inset-0 bg-black/85 backdrop-blur-md z-50 flex flex-col items-center justify-center p-6 text-center animate-in fade-in duration-300"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="max-w-md w-full bg-surface border border-border rounded-2xl p-6 shadow-2xl flex flex-col items-center">
+            <span className="text-xs font-semibold text-primary uppercase tracking-wider mb-2">Up Next in {nextCountdown}s</span>
+            <div className="relative w-full aspect-video rounded-xl overflow-hidden mb-4 border border-border">
+              <img 
+                src={nextVideo.thumbnail || nextVideo.thumbnailUrl} 
+                alt={nextVideo.title} 
+                className="w-full h-full object-cover"
+              />
+              <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                <Play className="w-12 h-12 text-white fill-current" />
+              </div>
+            </div>
+            <h3 className="font-bold text-text text-base line-clamp-1 mb-4">{nextVideo.title}</h3>
+            
+            <div className="flex items-center gap-3 w-full">
+              <button
+                onClick={cancelNextOverlay}
+                className="flex-1 py-2.5 px-4 bg-background hover:bg-surface-light border border-border text-text font-medium text-xs rounded-xl transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => { cancelNextOverlay(); onNextVideo(); }}
+                className="flex-1 py-2.5 px-4 bg-primary hover:bg-blue-600 text-white font-medium text-xs rounded-xl transition-colors flex items-center justify-center gap-2"
+              >
+                <SkipForward className="w-4 h-4 fill-current" />
+                Play Now ({nextCountdown}s)
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Controls Bar Overlay */}
       <div 
         className={cn(
-          "absolute bottom-0 left-0 right-0 p-4 pt-12 bg-gradient-to-t from-black/90 via-black/50 to-transparent transition-opacity duration-300 flex flex-col gap-3",
+          "absolute bottom-0 left-0 right-0 p-4 pt-12 bg-gradient-to-t from-black/95 via-black/60 to-transparent transition-opacity duration-300 flex flex-col gap-3 z-30",
           showControls || !isPlaying ? "opacity-100" : "opacity-0 pointer-events-none"
         )}
         onClick={(e) => e.stopPropagation()} 
       >
-        {/* Video Progress Bar */}
+        {/* Video Progress Timeline Slider */}
         <div className="w-full flex items-center gap-2 group/progress">
           <div className={cn("relative h-2 flex-1 rounded-full bg-white/20 transition-all overflow-hidden", isController && "cursor-pointer group-hover/progress:h-2.5")}>
             <div 
@@ -388,37 +521,56 @@ export function CustomVideoPlayer({
           </div>
         </div>
         
-        {/* Control Buttons Row */}
+        {/* Control Buttons Toolbar */}
         <div className="flex items-center justify-between text-white">
           <div className="flex items-center gap-3">
+            {/* Play / Pause Toggle */}
             <button 
               onClick={togglePlay} 
               disabled={!isController && isWatchParty}
               className={cn("transition-colors focus:outline-none", isController ? "hover:text-primary" : "opacity-50 cursor-not-allowed")}
+              title={isPlaying ? "Pause (Space/K)" : "Play (Space/K)"}
             >
               {isPlaying ? <Pause className="h-5 w-5 fill-current" /> : <Play className="h-5 w-5 fill-current" />}
             </button>
             
+            {/* 10s Rewind Button */}
             <button 
               onClick={() => skip(-10)} 
               disabled={!isController && isWatchParty}
-              className={cn("transition-colors focus:outline-none hidden sm:block", isController ? "hover:text-primary" : "opacity-50 cursor-not-allowed")}
-              title="Rewind 10s (J)"
+              className={cn("transition-colors focus:outline-none flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded hover:bg-white/10", isController ? "hover:text-primary" : "opacity-50 cursor-not-allowed")}
+              title="Rewind 10s (Left Arrow / J)"
             >
-              <SkipBack className="h-4 w-4" />
+              <RotateCcw className="h-4 w-4" />
+              <span className="hidden sm:inline">-10s</span>
             </button>
+
+            {/* 10s Forward Button */}
             <button 
               onClick={() => skip(10)} 
               disabled={!isController && isWatchParty}
-              className={cn("transition-colors focus:outline-none hidden sm:block", isController ? "hover:text-primary" : "opacity-50 cursor-not-allowed")}
-              title="Forward 10s (L)"
+              className={cn("transition-colors focus:outline-none flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded hover:bg-white/10", isController ? "hover:text-primary" : "opacity-50 cursor-not-allowed")}
+              title="Forward 10s (Right Arrow / L)"
             >
-              <SkipForward className="h-4 w-4" />
+              <RotateCw className="h-4 w-4" />
+              <span className="hidden sm:inline">+10s</span>
             </button>
 
+            {/* Next Video Button */}
+            {nextVideo && onNextVideo && (
+              <button
+                onClick={onNextVideo}
+                className="transition-colors focus:outline-none hover:text-primary flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded hover:bg-white/10"
+                title={`Next: ${nextVideo.title}`}
+              >
+                <SkipForward className="h-4 w-4 fill-current" />
+                <span className="hidden sm:inline">Next</span>
+              </button>
+            )}
+
             {/* Volume Control */}
-            <div className="flex items-center gap-2">
-              <button onClick={toggleMute} className="hover:text-primary transition-colors focus:outline-none">
+            <div className="flex items-center gap-2 ml-1">
+              <button onClick={toggleMute} className="hover:text-primary transition-colors focus:outline-none" title="Mute/Unmute (M)">
                 {isMuted || volume === 0 ? <VolumeX className="h-5 w-5" /> : <Volume2 className="h-5 w-5" />}
               </button>
               <input
@@ -432,12 +584,14 @@ export function CustomVideoPlayer({
               />
             </div>
             
-            <div className="text-xs font-medium font-mono ml-1">
-              {formatTime(currentTime)} / {formatTime(duration)}
+            {/* Playback Time Display */}
+            <div className="text-xs font-medium font-mono ml-2">
+              {formatTime(currentTime)} / {formatTime(realDuration)}
             </div>
           </div>
           
           <div className="flex items-center gap-4 relative">
+            {/* Settings Menu Button */}
             <button 
               onClick={(e) => { e.stopPropagation(); setShowSettings(!showSettings); }}
               className="hover:text-primary transition-colors focus:outline-none" 
@@ -446,15 +600,16 @@ export function CustomVideoPlayer({
               <Settings className="h-5 w-5" />
             </button>
 
+            {/* Settings Popover */}
             {showSettings && (
               <div 
-                className="absolute bottom-10 right-0 sm:right-10 bg-surface/95 backdrop-blur-md border border-border rounded-lg shadow-xl p-2 min-w-[160px] text-sm z-50 text-text"
+                className="absolute bottom-10 right-0 sm:right-10 bg-surface/95 backdrop-blur-md border border-border rounded-xl shadow-2xl p-2 min-w-[180px] text-sm z-50 text-text animate-in fade-in zoom-in-95 duration-150"
                 onClick={(e) => e.stopPropagation()}
               >
                 <div className="py-1">
-                  <div className="px-3 py-1 text-xs font-semibold text-muted uppercase">Speed</div>
+                  <div className="px-3 py-1 text-xs font-semibold text-muted uppercase">Playback Speed</div>
                   <div className="flex flex-wrap gap-1 px-2 mb-2">
-                    {[0.5, 1, 1.5, 2].map(speed => (
+                    {[0.5, 1, 1.25, 1.5, 2].map(speed => (
                       <button
                         key={speed}
                         onClick={() => handleSpeedChange(speed)}
@@ -475,7 +630,7 @@ export function CustomVideoPlayer({
                   onClick={toggleLoop}
                   className="w-full text-left px-3 py-2 hover:bg-white/10 rounded flex justify-between items-center transition-colors"
                 >
-                  <span>Loop</span>
+                  <span>Loop Video</span>
                   <span className="text-xs font-medium text-primary">{isLooping ? 'On' : 'Off'}</span>
                 </button>
                 {pipSupported && (
@@ -489,6 +644,7 @@ export function CustomVideoPlayer({
               </div>
             )}
 
+            {/* Fullscreen Toggle Button */}
             <button onClick={toggleFullscreen} className="hover:text-primary transition-colors focus:outline-none" title="Fullscreen (F)">
               {isFullscreen ? <Minimize className="h-5 w-5" /> : <Maximize className="h-5 w-5" />}
             </button>

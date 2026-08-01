@@ -4,50 +4,57 @@ const ApiResponse = require('../utils/ApiResponse');
 const httpStatus = require('../constants/httpStatus');
 const DownloadHistory = require('../models/DownloadHistory');
 const Video = require('../models/Video');
-const { PLAN_LIMITS } = require('../config/planLimits');
+const User = require('../models/User');
+const SUBSCRIPTION_PLANS = require('../config/subscriptionPlans');
+
+const getPlanLimit = (planName) => {
+  const plan = SUBSCRIPTION_PLANS[planName] || SUBSCRIPTION_PLANS.Free;
+  return plan.downloadLimit;
+};
 
 // @desc    Initiate and record a video download
 // @route   POST /api/v1/downloads/:videoId
 // @access  Private
 exports.processDownload = asyncHandler(async (req, res) => {
   const { videoId } = req.params;
-  const user = req.user;
+  const userDoc = await User.findById(req.user._id);
 
   const video = await Video.findById(videoId);
   if (!video) {
     throw new ApiError(httpStatus.NOT_FOUND, 'Video not found');
   }
 
-  const userPlan = user.subscription || 'Free';
-  const limit = PLAN_LIMITS[userPlan] !== undefined ? PLAN_LIMITS[userPlan] : 1;
+  const userPlan = userDoc?.subscription || req.user.subscription || 'Free';
+  const dailyLimit = getPlanLimit(userPlan);
 
-  // Calculate start of current day (UTC midnight)
+  // Check today's download count (UTC midnight)
   const startOfDay = new Date();
   startOfDay.setUTCHours(0, 0, 0, 0);
 
-  const nextReset = new Date(startOfDay.getTime() + 24 * 60 * 60 * 1000).toISOString();
+  const nextReset = new Date(startOfDay);
+  nextReset.setUTCDate(nextReset.getUTCDate() + 1);
 
-  // Count user downloads today
   const usedToday = await DownloadHistory.countDocuments({
-    user: user._id,
-    downloadDate: { $gte: startOfDay },
+    user: req.user._id,
+    downloadDate: { $gte: startOfDay }
   });
 
-  if (usedToday >= limit) {
+  if (usedToday >= dailyLimit) {
     return res.status(httpStatus.FORBIDDEN).json({
       success: false,
-      message: `Daily download limit reached (${usedToday}/${limit}) for your ${userPlan} plan. Upgrade to a higher plan for more downloads!`,
+      limitReached: true,
+      message: `Daily download limit reached (${usedToday}/${dailyLimit}) for your ${userPlan} plan. Upgrade your plan for more downloads.`,
       plan: userPlan,
       usedToday,
-      limit,
+      limit: dailyLimit,
       remaining: 0,
-      nextReset,
+      nextReset
     });
   }
 
   // Record download history entry
   const downloadRecord = await DownloadHistory.create({
-    user: user._id,
+    user: req.user._id,
     video: video._id,
     planUsed: userPlan,
     videoSource: video.source || 'user',
@@ -55,7 +62,7 @@ exports.processDownload = asyncHandler(async (req, res) => {
     downloadDate: new Date(),
   });
 
-  const remaining = Math.max(0, limit - (usedToday + 1));
+  const remaining = Math.max(0, dailyLimit - (usedToday + 1));
 
   return res.status(httpStatus.OK).json(
     new ApiResponse(
@@ -72,7 +79,7 @@ exports.processDownload = asyncHandler(async (req, res) => {
         },
         plan: userPlan,
         usedToday: usedToday + 1,
-        limit,
+        limit: dailyLimit,
         remaining,
         nextReset,
       },
@@ -98,9 +105,9 @@ exports.getUserDownloads = asyncHandler(async (req, res) => {
 // @route   GET /api/v1/downloads/status
 // @access  Private
 exports.getDownloadStatus = asyncHandler(async (req, res) => {
-  const user = req.user;
-  const userPlan = user.subscription || 'Free';
-  const limit = PLAN_LIMITS[userPlan] !== undefined ? PLAN_LIMITS[userPlan] : 1;
+  const userDoc = await User.findById(req.user._id);
+  const userPlan = userDoc?.subscription || req.user.subscription || 'Free';
+  const limit = getPlanLimit(userPlan);
 
   const startOfDay = new Date();
   startOfDay.setUTCHours(0, 0, 0, 0);
@@ -108,7 +115,7 @@ exports.getDownloadStatus = asyncHandler(async (req, res) => {
   const nextReset = new Date(startOfDay.getTime() + 24 * 60 * 60 * 1000).toISOString();
 
   const usedToday = await DownloadHistory.countDocuments({
-    user: user._id,
+    user: req.user._id,
     downloadDate: { $gte: startOfDay },
   });
 

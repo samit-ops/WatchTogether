@@ -139,7 +139,12 @@ export default function VideoDetails() {
         
         {/* Main Content Area */}
         <div className="flex-1 lg:w-2/3 xl:w-3/4">
-          <CustomVideoPlayer src={video.videoUrl} poster={video.thumbnail} />
+          <CustomVideoPlayer 
+            src={video.videoUrl} 
+            poster={video.thumbnail}
+            nextVideo={relatedVideos[0]}
+            onNextVideo={() => relatedVideos[0] && navigate(`/video/${relatedVideos[0]._id}`)}
+          />
           
           <div className="mt-6">
             <h1 className="text-2xl sm:text-3xl font-bold text-text">

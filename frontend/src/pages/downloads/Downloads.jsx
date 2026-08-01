@@ -121,10 +121,11 @@ export default function Downloads() {
     );
   }
 
+  const PLAN_LIMITS = { Free: 1, Bronze: 5, Silver: 15, Gold: 100 };
   const userPlan = status?.plan || user.subscription || 'Free';
-  const usedToday = status?.usedToday || 0;
-  const limit = status?.limit || (userPlan === 'Free' ? 1 : 5);
-  const remaining = Math.max(0, limit - usedToday);
+  const usedToday = status?.usedToday ?? 0;
+  const limit = status?.limit || PLAN_LIMITS[userPlan] || 1;
+  const remaining = status?.remaining ?? Math.max(0, limit - usedToday);
   const progressPercent = Math.min(100, Math.round((usedToday / limit) * 100));
 
   return (

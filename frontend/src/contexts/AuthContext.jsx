@@ -45,8 +45,24 @@ export const AuthProvider = ({ children }) => {
     setUser(null);
   };
 
+  const refreshUser = async () => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      try {
+        const data = await authService.getCurrentUser();
+        setUser(data.user);
+      } catch (error) {
+        console.error('Failed to refresh user', error);
+      }
+    }
+  };
+
+  const updateUserSubscription = (newPlan) => {
+    setUser(prev => prev ? { ...prev, subscription: newPlan } : null);
+  };
+
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout }}>
+    <AuthContext.Provider value={{ user, loading, login, register, logout, refreshUser, updateUserSubscription }}>
       {children}
     </AuthContext.Provider>
   );
