@@ -2,7 +2,7 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { Play } from 'lucide-react';
 
-export function VideoCard({ video }) {
+export function VideoCard({ video, onSelect }) {
   // Format duration
   const formatDuration = (seconds) => {
     if (!seconds) return '0:00';
@@ -18,8 +18,15 @@ export function VideoCard({ video }) {
     return views;
   };
 
+  const handleCardClick = (e) => {
+    if (onSelect) {
+      e.preventDefault();
+      onSelect(video);
+    }
+  };
+
   return (
-    <Link to={`/video/${video._id}`} className="group block w-full">
+    <Link to={`/video/${video._id}`} onClick={handleCardClick} className="group block w-full">
       <div className="relative aspect-video w-full overflow-hidden rounded-xl bg-surface">
         <img 
           src={video.thumbnail} 
@@ -28,11 +35,17 @@ export function VideoCard({ video }) {
           loading="lazy"
         />
         
-        {/* Play Overlay */}
+        {/* Play Overlay / Select Overlay */}
         <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 transition-opacity duration-300 group-hover:opacity-100">
-          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/90 shadow-lg backdrop-blur-sm transform scale-90 transition-transform duration-300 group-hover:scale-100">
-            <Play className="h-6 w-6 fill-white text-white ml-1" />
-          </div>
+          {onSelect ? (
+            <div className="px-4 py-2 bg-primary text-white font-bold rounded-lg shadow-lg transform scale-90 transition-transform duration-300 group-hover:scale-100 pointer-events-none">
+              Use for Watch Party
+            </div>
+          ) : (
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/90 shadow-lg backdrop-blur-sm transform scale-90 transition-transform duration-300 group-hover:scale-100">
+              <Play className="h-6 w-6 fill-white text-white ml-1" />
+            </div>
+          )}
         </div>
         
         {/* Duration Badge */}

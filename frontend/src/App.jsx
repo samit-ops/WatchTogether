@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Loader } from '@/components/ui/Loader';
 import { AuthProvider } from '@/contexts/AuthContext';
+import { SocketProvider } from '@/contexts/SocketContext';
 import { ProtectedRoute } from '@/components/layout/ProtectedRoute';
 
 // Lazy load pages for performance
@@ -15,14 +16,16 @@ const Downloads = React.lazy(() => import('@/pages/downloads/Downloads'));
 const UploadVideo = React.lazy(() => import('@/pages/upload/UploadVideo'));
 const MyLibrary = React.lazy(() => import('@/pages/library/MyLibrary'));
 const CreateWatchParty = React.lazy(() => import('@/pages/watch-party/CreateWatchParty'));
+const WatchPartyRoom = React.lazy(() => import('@/pages/watch-party/WatchPartyRoom'));
 const VideoDetails = React.lazy(() => import('@/pages/videos/VideoDetails'));
 const NotFound = React.lazy(() => import('@/pages/NotFound'));
 
 function App() {
   return (
     <AuthProvider>
-      <BrowserRouter>
-        <Suspense fallback={<div className="flex h-screen w-screen items-center justify-center"><Loader size={32} /></div>}>
+      <SocketProvider>
+        <BrowserRouter>
+          <Suspense fallback={<div className="flex h-screen w-screen items-center justify-center"><Loader size={32} /></div>}>
           <Routes>
             <Route element={<MainLayout />}>
               {/* Public Routes */}
@@ -39,6 +42,7 @@ function App() {
                 <Route path="/upload" element={<UploadVideo />} />
                 <Route path="/library" element={<MyLibrary />} />
                 <Route path="/watch-party/create" element={<CreateWatchParty />} />
+                <Route path="/watch-party/:roomId" element={<WatchPartyRoom />} />
               </Route>
               
               <Route path="*" element={<NotFound />} />
@@ -46,6 +50,7 @@ function App() {
           </Routes>
         </Suspense>
       </BrowserRouter>
+      </SocketProvider>
     </AuthProvider>
   );
 }

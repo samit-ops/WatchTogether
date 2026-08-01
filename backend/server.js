@@ -9,8 +9,14 @@ const mongoose = require('mongoose');
 const startServer = async () => {
   // Ensure DB connects before server starts accepting traffic
   await connectDB();
+  const http = require('http');
+  const httpServer = http.createServer(app);
   
-  const server = app.listen(env.PORT, () => {
+  // Initialize Socket.IO
+  const initSocket = require('./src/socket');
+  initSocket(httpServer);
+  
+  const server = httpServer.listen(env.PORT, () => {
     logger.info(`Server running in ${env.NODE_ENV} mode on port ${env.PORT}`);
   });
 

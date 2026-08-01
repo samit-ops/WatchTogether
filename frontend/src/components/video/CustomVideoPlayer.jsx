@@ -1,11 +1,15 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { 
   Play, Pause, Volume2, VolumeX, Maximize, Minimize, 
-  Settings, SkipBack, SkipForward 
+  Settings, SkipBack, SkipForward
 } from 'lucide-react';
 import { cn } from '@/utils/cn';
+import { useSocket } from '@/contexts/SocketContext';
 
-export function CustomVideoPlayer({ src, poster, onEnded }) {
+export function CustomVideoPlayer({ 
+  src, poster, onEnded, isWatchParty = false, isHost = false, 
+  roomId = null, playbackPermission = 'host', currentUserId = null
+}) {
   const videoRef = useRef(null);
   const containerRef = useRef(null);
   
@@ -22,7 +26,94 @@ export function CustomVideoPlayer({ src, poster, onEnded }) {
   const [isLooping, setIsLooping] = useState(false);
   const pipSupported = typeof document !== 'undefined' && document.pictureInPictureEnabled;
   
-  // Auto-hide controls timer
+  const remoteSyncingRef = useRef(false);
+  const { socket } = useSocket();
+
+  const isController = playbackPermission === 'everyone' ? true : isHost;
+
+  useEffect(() => {
+    if (!socket || !isWatchParty) return;
+
+    socket.emit('request-sync', { roomId });
+
+    const handleSyncTime = (data) => {
+      if (videoRef.current) {
+        remoteSyncingRef.current = true;
+        
+        if (Math.abs(videoRef.current.currentTime - data.currentTime) > 1) {
+          videoRef.current.currentTime = data.currentTime;
+        }
+        
+        videoRef.current.playbackRate = data.playbackRate;
+        setPlaybackSpeed(data.playbackRate);
+        
+        if (data.isPlaying && videoRef.current.paused) {
+          videoRef.current.play().catch(console.error);
+          setIsPlaying(true);
+        } else if (!data.isPlaying && !videoRef.current.paused) {
+          videoRef.current.pause();
+          setIsPlaying(false);
+        }
+        setTimeout(() => { remoteSyncingRef.current = false; }, 500);
+      }
+    };
+
+    const handlePlay = (data) => {
+      if (data.updatedBy === currentUserId) return;
+      if (videoRef.current) {
+        remoteSyncingRef.current = true;
+        if (Math.abs(videoRef.current.currentTime - data.currentTime) > 1) {
+          videoRef.current.currentTime = data.currentTime;
+        }
+        videoRef.current.play().catch(console.error);
+        setIsPlaying(true);
+        setTimeout(() => { remoteSyncingRef.current = false; }, 500);
+      }
+    };
+
+    const handlePause = (data) => {
+      if (data.updatedBy === currentUserId) return;
+      if (videoRef.current) {
+        remoteSyncingRef.current = true;
+        videoRef.current.pause();
+        videoRef.current.currentTime = data.currentTime;
+        setIsPlaying(false);
+        setTimeout(() => { remoteSyncingRef.current = false; }, 500);
+      }
+    };
+
+    const handleSeek = (data) => {
+      if (data.updatedBy === currentUserId) return;
+      if (videoRef.current) {
+        remoteSyncingRef.current = true;
+        videoRef.current.currentTime = data.currentTime;
+        setTimeout(() => { remoteSyncingRef.current = false; }, 500);
+      }
+    };
+
+    const handlePlaybackRate = (data) => {
+      if (data.updatedBy === currentUserId) return;
+      if (videoRef.current) {
+        videoRef.current.playbackRate = data.rate;
+        setPlaybackSpeed(data.rate);
+      }
+    };
+
+    socket.on('sync-time', handleSyncTime);
+    socket.on('play', handlePlay);
+    socket.on('pause', handlePause);
+    socket.on('seek', handleSeek);
+    socket.on('playback-rate', handlePlaybackRate);
+
+    return () => {
+      socket.off('sync-time', handleSyncTime);
+      socket.off('play', handlePlay);
+      socket.off('pause', handlePause);
+      socket.off('seek', handleSeek);
+      socket.off('playback-rate', handlePlaybackRate);
+    };
+  }, [socket, isWatchParty, roomId, currentUserId]);
+  
   const controlsTimeoutRef = useRef(null);
   
   const handleMouseMove = () => {
@@ -34,12 +125,20 @@ export function CustomVideoPlayer({ src, poster, onEnded }) {
   };
   
   const togglePlay = () => {
+    if (isWatchParty && !isController) return;
+    
     if (videoRef.current.paused) {
       videoRef.current.play().catch(e => console.log("Play interrupted", e));
       setIsPlaying(true);
+      if (isWatchParty && isController && !remoteSyncingRef.current) {
+        socket?.emit('play', { roomId, currentTime: videoRef.current.currentTime });
+      }
     } else {
       videoRef.current.pause();
       setIsPlaying(false);
+      if (isWatchParty && isController && !remoteSyncingRef.current) {
+        socket?.emit('pause', { roomId, currentTime: videoRef.current.currentTime });
+      }
     }
   };
 
@@ -55,9 +154,13 @@ export function CustomVideoPlayer({ src, poster, onEnded }) {
   };
 
   const handleProgressChange = (e) => {
+    if (isWatchParty && !isController) return;
     const newTime = (e.target.value / 100) * duration;
     videoRef.current.currentTime = newTime;
     setProgress(e.target.value);
+    if (isWatchParty && isController && !remoteSyncingRef.current) {
+      socket?.emit('seek', { roomId, currentTime: newTime });
+    }
   };
 
   const toggleMute = () => {
@@ -93,9 +196,13 @@ export function CustomVideoPlayer({ src, poster, onEnded }) {
   }, []);
 
   const handleSpeedChange = (speed) => {
+    if (isWatchParty && !isController) return;
     if (videoRef.current) {
       videoRef.current.playbackRate = speed;
       setPlaybackSpeed(speed);
+      if (isWatchParty && isController && !remoteSyncingRef.current) {
+        socket?.emit('playback-rate', { roomId, rate: speed });
+      }
     }
     setShowSettings(false);
   };
@@ -122,13 +229,15 @@ export function CustomVideoPlayer({ src, poster, onEnded }) {
   };
 
   const skip = (amount) => {
+    if (isWatchParty && !isController) return;
     videoRef.current.currentTime += amount;
+    if (isWatchParty && isController && !remoteSyncingRef.current) {
+      socket?.emit('seek', { roomId, currentTime: videoRef.current.currentTime });
+    }
   };
 
-  // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e) => {
-      // Don't trigger if user is typing in an input
       if (['INPUT', 'TEXTAREA'].includes(document.activeElement?.tagName)) return;
       
       switch(e.key.toLowerCase()) {
@@ -173,16 +282,14 @@ export function CustomVideoPlayer({ src, poster, onEnded }) {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isPlaying, volume, isFullscreen]);
+  }, [isPlaying, volume, isFullscreen, isController]);
 
-  // Mobile double tap
   const [lastTap, setLastTap] = useState(0);
   
   const handleTouchEnd = (e) => {
-    const currentTime = new Date().getTime();
-    const tapLength = currentTime - lastTap;
+    const currentTimeTap = new Date().getTime();
+    const tapLength = currentTimeTap - lastTap;
     if (tapLength < 500 && tapLength > 0) {
-      // Double tap detected
       const touchX = e.changedTouches[0].clientX;
       const screenWidth = window.innerWidth;
       if (touchX > screenWidth / 2) {
@@ -192,7 +299,7 @@ export function CustomVideoPlayer({ src, poster, onEnded }) {
       }
       e.preventDefault();
     }
-    setLastTap(currentTime);
+    setLastTap(currentTimeTap);
   };
 
   const formatTime = (timeInSeconds) => {
@@ -215,15 +322,20 @@ export function CustomVideoPlayer({ src, poster, onEnded }) {
         ref={videoRef}
         src={src}
         poster={poster}
-        className="w-full h-full object-contain cursor-pointer"
+        className={cn("w-full h-full object-contain cursor-pointer", !isController && "cursor-default")}
         onTimeUpdate={handleTimeUpdate}
         onLoadedMetadata={handleLoadedMetadata}
-        onEnded={() => { setIsPlaying(false); if(onEnded) onEnded(); }}
+        onEnded={() => { 
+          setIsPlaying(false); 
+          if(onEnded) onEnded(); 
+          if(isWatchParty && isController) {
+            socket?.emit('video-ended', { roomId });
+          }
+        }}
         onClick={(e) => { e.stopPropagation(); togglePlay(); }}
         playsInline
       />
       
-      {/* Big Center Play Button for Initial State or Paused */}
       {!isPlaying && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none bg-black/20">
           <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary/90 shadow-xl backdrop-blur-md transform transition-transform group-hover:scale-110">
@@ -232,41 +344,54 @@ export function CustomVideoPlayer({ src, poster, onEnded }) {
         </div>
       )}
 
-      {/* Controls Overlay */}
       <div 
         className={cn(
           "absolute bottom-0 left-0 right-0 p-4 pt-16 bg-gradient-to-t from-black/90 via-black/40 to-transparent transition-opacity duration-300 flex flex-col gap-2",
           showControls || !isPlaying ? "opacity-100" : "opacity-0 pointer-events-none"
         )}
-        onClick={(e) => e.stopPropagation()} // Prevent toggling play when clicking controls
+        onClick={(e) => e.stopPropagation()} 
       >
-        
-        {/* Seek Bar */}
-        <div className="relative group/progress h-1.5 flex-1 cursor-pointer rounded-full bg-white/20 hover:h-2 transition-all">
+        <div className={cn("relative h-1.5 flex-1 rounded-full bg-white/20 transition-all", isController ? "cursor-pointer group/progress hover:h-2" : "opacity-70")}>
           <div 
             className="absolute top-0 left-0 h-full bg-primary rounded-full"
             style={{ width: `${progress}%` }}
           />
-          <input
-            type="range"
-            min="0"
-            max="100"
-            value={progress || 0}
-            onChange={handleProgressChange}
-            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-          />
+          {isController && (
+            <input
+              type="range"
+              min="0"
+              max="100"
+              value={progress || 0}
+              onChange={handleProgressChange}
+              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+            />
+          )}
         </div>
         
         <div className="flex items-center justify-between text-white pt-1">
           <div className="flex items-center gap-4">
-            <button onClick={togglePlay} className="hover:text-primary transition-colors focus:outline-none">
+            <button 
+              onClick={togglePlay} 
+              disabled={!isController && isWatchParty}
+              className={cn("transition-colors focus:outline-none", isController ? "hover:text-primary" : "opacity-50 cursor-not-allowed")}
+            >
               {isPlaying ? <Pause className="h-5 w-5 fill-current" /> : <Play className="h-5 w-5 fill-current" />}
             </button>
             
-            <button onClick={() => skip(-10)} className="hover:text-primary transition-colors focus:outline-none hidden sm:block" title="Rewind 10s (J)">
+            <button 
+              onClick={() => skip(-10)} 
+              disabled={!isController && isWatchParty}
+              className={cn("transition-colors focus:outline-none hidden sm:block", isController ? "hover:text-primary" : "opacity-50 cursor-not-allowed")}
+              title="Rewind 10s (J)"
+            >
               <SkipBack className="h-4 w-4" />
             </button>
-            <button onClick={() => skip(10)} className="hover:text-primary transition-colors focus:outline-none hidden sm:block" title="Forward 10s (L)">
+            <button 
+              onClick={() => skip(10)} 
+              disabled={!isController && isWatchParty}
+              className={cn("transition-colors focus:outline-none hidden sm:block", isController ? "hover:text-primary" : "opacity-50 cursor-not-allowed")}
+              title="Forward 10s (L)"
+            >
               <SkipForward className="h-4 w-4" />
             </button>
 
@@ -311,9 +436,11 @@ export function CustomVideoPlayer({ src, poster, onEnded }) {
                       <button
                         key={speed}
                         onClick={() => handleSpeedChange(speed)}
+                        disabled={!isController && isWatchParty}
                         className={cn(
                           "px-2 py-1 rounded text-xs font-medium transition-colors",
-                          playbackSpeed === speed ? "bg-primary text-white" : "hover:bg-white/10"
+                          playbackSpeed === speed ? "bg-primary text-white" : "hover:bg-white/10",
+                          !isController && isWatchParty && "opacity-50 cursor-not-allowed"
                         )}
                       >
                         {speed}x
