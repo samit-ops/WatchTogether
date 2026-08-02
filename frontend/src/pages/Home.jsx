@@ -5,8 +5,9 @@ import videoService from '@/services/video.service';
 import { VideoCard } from '@/components/video/VideoCard';
 import { ParticleCanvas } from '@/components/ui/ParticleCanvas';
 import { MagneticButton } from '@/components/ui/MagneticButton';
+import { TiltCard } from '@/components/ui/TiltCard';
 import { FadeIn, ScrollReveal, StaggerContainer, StaggerItem } from '@/components/motion';
-import { Play, Sparkles, TrendingUp } from 'lucide-react';
+import { Play, Sparkles, TrendingUp, Users, Globe, Download, ShieldCheck, Video, Zap } from 'lucide-react';
 
 export default function Home() {
   const [videos, setVideos] = useState([]);
@@ -87,10 +88,41 @@ export default function Home() {
     }
   };
 
+  const featureShowcase = [
+    {
+      icon: Users,
+      title: 'Real-time Watch Parties',
+      description: 'Host private or public rooms with WebRTC video calling, low-latency audio, screen share, and synchronized playback.',
+      badge: 'Live Sync',
+      color: 'from-blue-500 to-indigo-600',
+    },
+    {
+      icon: Globe,
+      title: 'AI Multilingual Translation',
+      description: 'Break language barriers. Translate comments instantly into 6+ preferred languages with automated profanity filters.',
+      badge: '6+ Languages',
+      color: 'from-purple-500 to-pink-600',
+    },
+    {
+      icon: Download,
+      title: 'Controlled High-Speed Downloads',
+      description: 'Download your favorite videos for offline viewing with tier-based quota management for free and premium subscribers.',
+      badge: 'Quota Tracked',
+      color: 'from-amber-500 to-orange-600',
+    },
+    {
+      icon: ShieldCheck,
+      title: 'Secure OTP & Pincode Privacy',
+      description: 'Multi-factor email OTP authentication with automated India Post pincode city auto-completion and optional location privacy.',
+      badge: 'Privacy First',
+      color: 'from-emerald-500 to-teal-600',
+    },
+  ];
+
   return (
     <div className="min-h-screen pb-12">
       {/* ═══ Hero Section ═══ */}
-      <section className="relative w-full h-[60vh] sm:h-[70vh] flex items-center justify-center overflow-hidden">
+      <section className="relative w-full h-[65vh] sm:h-[75vh] flex items-center justify-center overflow-hidden">
         {/* Layer 1: Animated Mesh Gradient */}
         <div className="hero-mesh-gradient" />
         
@@ -112,9 +144,9 @@ export default function Home() {
         {/* Layer 5: Hero Content */}
         <div className="relative z-[3] container mx-auto px-4 max-w-7xl flex flex-col items-center sm:items-start text-center sm:text-left gap-6">
           <FadeIn delay={0}>
-            <span className="inline-flex items-center gap-1.5 px-4 py-1.5 text-xs font-semibold uppercase tracking-wider text-primary glass-card rounded-full">
+            <span className="inline-flex items-center gap-1.5 px-4 py-1.5 text-xs font-semibold uppercase tracking-wider text-primary glass-card rounded-full shadow-lg">
               <Sparkles className="h-3.5 w-3.5" />
-              Watch Party Ready
+              Next-Gen Watch Party Platform
             </span>
           </FadeIn>
           
@@ -127,26 +159,36 @@ export default function Home() {
           
           <FadeIn delay={0.2}>
             <p className="text-lg sm:text-xl text-muted max-w-xl font-medium leading-relaxed">
-              Experience movies and shows together with friends in real-time. Premium streaming meets social interaction.
+              Experience movies and videos together with friends in real-time. WebRTC video calls, AI comments translation, and seamless playback.
             </p>
           </FadeIn>
           
           <FadeIn delay={0.3}>
-            <MagneticButton
-              as="button"
-              onClick={handleStartWatching}
-              className="btn-gradient flex items-center gap-2.5 px-8 py-4 rounded-full font-bold text-base shadow-xl cursor-pointer"
-              strength={0.12}
-            >
-              <Play className="h-5 w-5 fill-current" />
-              <span>Start Watching</span>
-            </MagneticButton>
+            <div className="flex flex-wrap items-center gap-4 mt-2">
+              <MagneticButton
+                as="button"
+                onClick={handleStartWatching}
+                className="btn-gradient flex items-center gap-2.5 px-8 py-4 rounded-full font-bold text-base shadow-xl cursor-pointer"
+                strength={0.12}
+              >
+                <Play className="h-5 w-5 fill-current" />
+                <span>Start Watching</span>
+              </MagneticButton>
+
+              <button
+                onClick={() => navigate('/watch-party/create')}
+                className="flex items-center gap-2 px-6 py-4 rounded-full font-bold text-sm glass-card hover:bg-surface border border-border transition-all"
+              >
+                <Video className="h-4 w-4 text-primary" />
+                <span>Create Watch Party</span>
+              </button>
+            </div>
           </FadeIn>
         </div>
       </section>
 
       {/* ═══ Content Sections ═══ */}
-      <div className="container mx-auto px-4 max-w-7xl mt-16 space-y-20">
+      <div className="container mx-auto px-4 max-w-7xl mt-16 space-y-24">
         
         {/* Gradient divider */}
         <div className="gradient-divider" />
@@ -156,7 +198,7 @@ export default function Home() {
           <section id="trending-section">
             <ScrollReveal>
               <div className="flex items-center gap-3 mb-8">
-                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-[var(--gradient-start)] to-[var(--gradient-end)]">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-[var(--gradient-start)] to-[var(--gradient-end)] shadow-md">
                   <TrendingUp className="h-4 w-4 text-white" />
                 </div>
                 <h2 className="text-2xl font-bold text-text">Trending Now</h2>
@@ -175,12 +217,62 @@ export default function Home() {
         {/* Gradient divider */}
         <div className="gradient-divider" />
 
+        {/* ═══ 3D Interactive Feature Showcase Section ═══ */}
+        <section>
+          <ScrollReveal>
+            <div className="text-center max-w-2xl mx-auto mb-12 space-y-3">
+              <span className="px-3 py-1 text-xs font-bold uppercase tracking-wider text-primary bg-primary/10 rounded-full border border-primary/20">
+                Platform Capabilities
+              </span>
+              <h2 className="text-3xl sm:text-4xl font-extrabold text-text">
+                Designed for Interactive <span className="text-gradient">Streaming.</span>
+              </h2>
+              <p className="text-muted text-sm sm:text-base">
+                Discover the advanced features engineered into WatchTogether for seamless group entertainment.
+              </p>
+            </div>
+          </ScrollReveal>
+
+          <StaggerContainer className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {featureShowcase.map((feat, idx) => {
+              const IconComp = feat.icon;
+              return (
+                <StaggerItem key={idx}>
+                  <TiltCard maxTilt={8} className="h-full">
+                    <div className="glass-card p-6 sm:p-8 h-full flex flex-col justify-between card-hover relative overflow-hidden group">
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-between">
+                          <div className={`w-12 h-12 rounded-2xl bg-gradient-to-br ${feat.color} flex items-center justify-center text-white shadow-lg`}>
+                            <IconComp className="w-6 h-6" />
+                          </div>
+                          <span className="px-3 py-1 rounded-full text-xs font-bold bg-surface border border-border text-muted uppercase tracking-wider">
+                            {feat.badge}
+                          </span>
+                        </div>
+                        <h3 className="text-xl font-bold text-text group-hover:text-primary transition-colors">
+                          {feat.title}
+                        </h3>
+                        <p className="text-muted text-sm leading-relaxed">
+                          {feat.description}
+                        </p>
+                      </div>
+                    </div>
+                  </TiltCard>
+                </StaggerItem>
+              );
+            })}
+          </StaggerContainer>
+        </section>
+
+        {/* Gradient divider */}
+        <div className="gradient-divider" />
+
         {/* Recently Added */}
         {recentlyAdded.length > 0 && (
           <section>
             <ScrollReveal>
               <div className="flex items-center gap-3 mb-8">
-                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-500 to-purple-500">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-500 to-purple-500 shadow-md">
                   <Sparkles className="h-4 w-4 text-white" />
                 </div>
                 <h2 className="text-2xl font-bold text-text">Recently Added</h2>

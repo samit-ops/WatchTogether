@@ -2,6 +2,7 @@ import React, { memo } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Play } from 'lucide-react';
+import { TiltCard } from '@/components/ui/TiltCard';
 import { usePrefersReducedMotion } from '@/components/motion';
 
 export const VideoCard = memo(function VideoCard({ video, onSelect }) {
@@ -31,7 +32,7 @@ export const VideoCard = memo(function VideoCard({ video, onSelect }) {
 
   const MotionWrapper = prefersReducedMotion ? 'div' : motion.div;
   const motionProps = prefersReducedMotion ? {} : {
-    whileHover: { scale: 1.015, y: -3 },
+    whileHover: { scale: 1.015 },
     whileTap: { scale: 0.98 },
     transition: { duration: 0.3, ease: [0.25, 0.4, 0, 1] },
   };
@@ -39,32 +40,34 @@ export const VideoCard = memo(function VideoCard({ video, onSelect }) {
   return (
     <Link to={`/video/${video._id}`} onClick={handleCardClick} className="group block w-full">
       <MotionWrapper {...motionProps}>
-        <div className="relative aspect-video w-full overflow-hidden rounded-xl bg-surface card-hover">
-          <img 
-            src={video.thumbnail} 
-            alt={video.title}
-            className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
-            loading="lazy"
-          />
-          
-          {/* Play Overlay / Select Overlay */}
-          <div className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/30 transition-all duration-300">
-            {onSelect ? (
-              <div className="px-4 py-2 btn-gradient font-bold rounded-lg shadow-lg transform scale-0 opacity-0 transition-all duration-300 group-hover:scale-100 group-hover:opacity-100 pointer-events-none">
-                <span>Use for Watch Party</span>
-              </div>
-            ) : (
-              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-[var(--gradient-start)] to-[var(--gradient-end)] shadow-lg transform scale-0 opacity-0 transition-all duration-300 group-hover:scale-100 group-hover:opacity-100">
-                <Play className="h-5 w-5 fill-white text-white ml-0.5" />
-              </div>
-            )}
+        <TiltCard maxTilt={6} className="w-full">
+          <div className="relative aspect-video w-full overflow-hidden rounded-xl bg-surface card-hover">
+            <img 
+              src={video.thumbnail} 
+              alt={video.title}
+              className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+              loading="lazy"
+            />
+            
+            {/* Play Overlay / Select Overlay */}
+            <div className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/30 transition-all duration-300">
+              {onSelect ? (
+                <div className="px-4 py-2 btn-gradient font-bold rounded-lg shadow-lg transform scale-0 opacity-0 transition-all duration-300 group-hover:scale-100 group-hover:opacity-100 pointer-events-none">
+                  <span>Use for Watch Party</span>
+                </div>
+              ) : (
+                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-[var(--gradient-start)] to-[var(--gradient-end)] shadow-lg transform scale-0 opacity-0 transition-all duration-300 group-hover:scale-100 group-hover:opacity-100">
+                  <Play className="h-5 w-5 fill-white text-white ml-0.5" />
+                </div>
+              )}
+            </div>
+            
+            {/* Duration Badge */}
+            <div className="absolute bottom-2 right-2 rounded-lg bg-black/70 px-2 py-0.5 text-xs font-medium text-white backdrop-blur-sm border border-white/10">
+              {formatDuration(video.duration)}
+            </div>
           </div>
-          
-          {/* Duration Badge */}
-          <div className="absolute bottom-2 right-2 rounded-lg bg-black/70 px-2 py-0.5 text-xs font-medium text-white backdrop-blur-sm border border-white/10">
-            {formatDuration(video.duration)}
-          </div>
-        </div>
+        </TiltCard>
         
         <div className="mt-3 flex gap-3">
           {video.uploadedBy?.avatar ? (
