@@ -22,8 +22,8 @@ export const SocketProvider = ({ children }) => {
     }
 
     const token = localStorage.getItem('token');
-    // For Vercel deployment, ensure VITE_BACKEND_URL is set without trailing slash
-    const SOCKET_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+    const rawSocketUrl = import.meta.env.VITE_BACKEND_URL || import.meta.env.VITE_API_URL || 'http://localhost:5000';
+    const SOCKET_URL = rawSocketUrl.replace(/\/api\/?$/, '').replace(/\/$/, '');
 
     const newSocket = io(SOCKET_URL, {
       auth: {
