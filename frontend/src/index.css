@@ -1,33 +1,50 @@
 @import "tailwindcss";
 @config "../tailwind.config.js";
 
-@layer base {
-  :root {
-    --background: #ffffff;
-    --surface: #f3f4f6;
-    --text: #111827;
-    --muted: #6b7280;
-    --border: #e5e7eb;
-    --primary: #3b82f6;
-    --radius: 0.5rem;
-  }
-
-  .dark {
-    --background: #09090b;
-    --surface: #18181b;
-    --text: #fafafa;
-    --muted: #a1a1aa;
-    --border: #27272a;
-    --primary: #3b82f6;
-  }
+@theme {
+  --color-primary: #3b82f6;
+  --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-surface-light: var(--surface-light);
+  --color-text: var(--text);
+  --color-muted: var(--muted);
+  --color-border: var(--border);
 }
 
-@layer base {
-  * {
-    @apply border-border;
-  }
-  body {
-    @apply bg-background text-text;
-    font-feature-settings: "rlig" 1, "calt" 1;
-  }
+:root {
+  --background: #ffffff;
+  --surface: #f3f4f6;
+  --surface-light: #e5e7eb;
+  --text: #0f172a;
+  --muted: #475569;
+  --border: #e2e8f0;
+  --primary: #2563eb;
+  --radius: 0.5rem;
+  color-scheme: light;
+}
+
+html.dark, body.dark, .dark {
+  --background: #09090b;
+  --surface: #18181b;
+  --surface-light: #27272a;
+  --text: #fafafa;
+  --muted: #9ca3af;
+  --border: #27272a;
+  --primary: #3b82f6;
+  color-scheme: dark;
+}
+
+* {
+  border-color: var(--border);
+}
+
+html, body {
+  background-color: var(--background) !important;
+  color: var(--text) !important;
+  transition: background-color 0.25s ease, color 0.25s ease;
+}
+
+/* Ensure header, main, and containers use dynamic background */
+header, nav, main, footer, div.bg-background, div.bg-surface {
+  transition: background-color 0.25s ease, color 0.25s ease, border-color 0.25s ease;
 }

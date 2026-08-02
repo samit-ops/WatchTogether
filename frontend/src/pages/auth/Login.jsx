@@ -3,21 +3,30 @@ import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
+import { OtpVerificationModal } from '@/components/auth/OtpVerificationModal';
+import { ForgotPasswordModal } from '@/components/auth/ForgotPasswordModal';
+import { toast } from '@/utils/toast';
 
 export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const { login } = useAuth();
+
+  // OTP Verification state for New Location / Device Security
+  const [otpData, setOtpData] = useState(null); // { email, phoneNumber, purpose, city, state }
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
+
+  const { login, setAuthSession } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const searchParams = new URLSearchParams(location.search);
   const redirectTarget = searchParams.get('redirect') || location.state?.from?.pathname || '/';
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
-    
+
     if (!email || !password) {
       setError('Please fill in all fields.');
       return;
@@ -25,12 +34,48 @@ export default function Login() {
 
     setLoading(true);
     try {
-      await login(email, password);
-      navigate(redirectTarget, { replace: true });
+      const data = await login(email, password);
+
+      // Check if new device/location OTP verification is required
+      if (data?.requireOtp) {
+        toast.info(data.message || 'New location detected. Security OTP verification required.');
+        setOtpData({
+          email: data.email || email,
+          phoneNumber: data.phoneNumber,
+          purpose: 'LOGIN_NEW_DEVICE',
+          city: data.city,
+          state: data.state
+        });
+      } else {
+        toast.success('Login successful!');
+        navigate(redirectTarget, { replace: true });
+      }
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to login. Please try again.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleOtpSuccess = (res) => {
+    const token = res.data?.token;
+    const userData = res.data?.user;
+    if (token && userData) {
+      setAuthSession(token, userData);
+      toast.success('Device verified! Welcome to Watch Together.');
+      setOtpData(null);
+      navigate(redirectTarget, { replace: true });
+    }
+  };
+
+  const handleForgotPasswordSuccess = (res) => {
+    const token = res.token;
+    const userData = res.user;
+    if (token && userData) {
+      setAuthSession(token, userData);
+      toast.success('Welcome back!');
+      setShowForgotPassword(false);
+      navigate(redirectTarget, { replace: true });
     }
   };
 
@@ -45,14 +90,14 @@ export default function Login() {
             Sign in to continue watching
           </p>
         </div>
-        
+
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
           {error && (
             <div className="rounded-md bg-red-500/10 p-4 border border-red-500/20 text-red-500 text-sm text-center">
               {error}
             </div>
           )}
-          
+
           <div className="space-y-4 rounded-md">
             <div>
               <label htmlFor="email-address" className="sr-only">Email address</label>
@@ -98,9 +143,13 @@ export default function Login() {
             </div>
 
             <div className="text-sm">
-              <a href="#" className="font-medium text-primary hover:text-blue-400 transition-colors">
+              <button
+                type="button"
+                onClick={() => setShowForgotPassword(true)}
+                className="font-medium text-primary hover:text-blue-400 transition-colors"
+              >
                 Forgot your password?
-              </a>
+              </button>
             </div>
           </div>
 
@@ -110,7 +159,7 @@ export default function Login() {
             </Button>
           </div>
         </form>
-        
+
         <p className="text-center text-sm text-muted">
           New to Watch Together?{' '}
           <Link to="/register" className="font-semibold text-primary hover:text-blue-400 transition-colors">
@@ -118,6 +167,27 @@ export default function Login() {
           </Link>
         </p>
       </div>
+
+      {/* New Location/Device Security OTP Modal */}
+      {otpData && (
+        <OtpVerificationModal
+          email={otpData.email}
+          phoneNumber={otpData.phoneNumber}
+          purpose={otpData.purpose}
+          city={otpData.city}
+          state={otpData.state}
+          onSuccess={handleOtpSuccess}
+          onClose={() => setOtpData(null)}
+        />
+      )}
+
+      {/* Forgot Password Modal */}
+      {showForgotPassword && (
+        <ForgotPasswordModal
+          onClose={() => setShowForgotPassword(false)}
+          onSuccess={handleForgotPasswordSuccess}
+        />
+      )}
     </div>
   );
 }

@@ -4,6 +4,7 @@ import { MainLayout } from '@/components/layout/MainLayout';
 import { Loader } from '@/components/ui/Loader';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { SocketProvider } from '@/contexts/SocketContext';
+import { ThemeProvider } from '@/contexts/ThemeContext';
 import { ProtectedRoute } from '@/components/layout/ProtectedRoute';
 
 // Lazy load pages for performance
@@ -23,7 +24,8 @@ const NotFound = React.lazy(() => import('@/pages/NotFound'));
 function App() {
   return (
     <AuthProvider>
-      <SocketProvider>
+      <ThemeProvider>
+        <SocketProvider>
         <BrowserRouter>
           <Suspense fallback={<div className="flex h-screen w-screen items-center justify-center"><Loader size={32} /></div>}>
           <Routes>
@@ -49,8 +51,9 @@ function App() {
             </Route>
           </Routes>
         </Suspense>
-      </BrowserRouter>
-      </SocketProvider>
+        </BrowserRouter>
+        </SocketProvider>
+      </ThemeProvider>
     </AuthProvider>
   );
 }

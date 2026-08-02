@@ -1,12 +1,15 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Play, LogOut, User } from 'lucide-react';
+import { Play, LogOut, User, Sun, Moon, Clock } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { useAuth } from '@/contexts/AuthContext';
+import { useTheme } from '@/contexts/ThemeContext';
 
 export function Navbar() {
   const { user, logout } = useAuth();
+  const { activeTheme, themePreference, setThemePreference } = useTheme();
   const navigate = useNavigate();
+  const [showThemeMenu, setShowThemeMenu] = useState(false);
 
   const handleLogout = async () => {
     await logout();
@@ -23,7 +26,69 @@ export function Navbar() {
           <span className="text-xl font-bold tracking-tight">Watch Together</span>
         </Link>
         <div className="flex flex-1 items-center justify-end space-x-4">
-          <nav className="flex items-center space-x-4">
+          <nav className="flex items-center space-x-3">
+            {/* Theme Selector Dropdown */}
+            <div className="relative">
+              <button
+                onClick={() => setShowThemeMenu(!showThemeMenu)}
+                className="flex items-center gap-1.5 p-2 rounded-lg bg-surface border border-border hover:border-primary/50 text-text transition-colors text-xs font-medium"
+                title={`Theme Preference: ${themePreference.toUpperCase()} (${activeTheme.toUpperCase()} Active)`}
+              >
+                {themePreference === 'auto' ? (
+                  <Clock className="h-4 w-4 text-primary" />
+                ) : themePreference === 'light' ? (
+                  <Sun className="h-4 w-4 text-amber-500" />
+                ) : (
+                  <Moon className="h-4 w-4 text-blue-400" />
+                )}
+                <span className="hidden sm:inline capitalize">{themePreference}</span>
+              </button>
+
+              {showThemeMenu && (
+                <div 
+                  className="absolute right-0 mt-2 w-48 rounded-xl bg-surface border border-border p-1.5 shadow-2xl z-50 text-xs"
+                  onClick={() => setShowThemeMenu(false)}
+                >
+                  <div className="px-2 py-1 text-[10px] font-bold text-muted uppercase tracking-wider">
+                    Theme Preference
+                  </div>
+                  <button
+                    onClick={() => setThemePreference('auto')}
+                    className={`w-full flex items-center justify-between px-2.5 py-2 rounded-lg text-left transition-colors ${
+                      themePreference === 'auto' ? 'bg-primary text-white font-bold' : 'hover:bg-background text-text'
+                    }`}
+                  >
+                    <span className="flex items-center gap-2">
+                      <Clock className="h-3.5 w-3.5" />
+                      Auto (10AM-12PM IST)
+                    </span>
+                  </button>
+                  <button
+                    onClick={() => setThemePreference('light')}
+                    className={`w-full flex items-center justify-between px-2.5 py-2 rounded-lg text-left transition-colors ${
+                      themePreference === 'light' ? 'bg-primary text-white font-bold' : 'hover:bg-background text-text'
+                    }`}
+                  >
+                    <span className="flex items-center gap-2">
+                      <Sun className="h-3.5 w-3.5 text-amber-500" />
+                      Light Theme
+                    </span>
+                  </button>
+                  <button
+                    onClick={() => setThemePreference('dark')}
+                    className={`w-full flex items-center justify-between px-2.5 py-2 rounded-lg text-left transition-colors ${
+                      themePreference === 'dark' ? 'bg-primary text-white font-bold' : 'hover:bg-background text-text'
+                    }`}
+                  >
+                    <span className="flex items-center gap-2">
+                      <Moon className="h-3.5 w-3.5 text-blue-400" />
+                      Dark Theme
+                    </span>
+                  </button>
+                </div>
+              )}
+            </div>
+
             {user ? (
               <div className="flex items-center gap-4">
                 <Link to="/watch-party/create" className="text-sm font-medium hover:text-primary transition-colors hidden sm:block">

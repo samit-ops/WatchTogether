@@ -148,17 +148,25 @@ exports.verifyPayment = asyncHandler(async (req, res) => {
     });
   }
 
+  // Calculate 30-day subscription tenure expiration
+  const paidAtDate = new Date();
+  const expiresAtDate = new Date(paidAtDate.getTime() + 30 * 24 * 60 * 60 * 1000);
+
   // Update Payment Record
   paymentRecord.status = 'success';
   paymentRecord.razorpayPaymentId = razorpay_payment_id;
   paymentRecord.razorpaySignature = razorpay_signature;
-  paymentRecord.paidAt = new Date();
+  paymentRecord.paidAt = paidAtDate;
+  paymentRecord.expiresAt = expiresAtDate;
   await paymentRecord.save();
 
-  // Update User Subscription
+  // Update User Subscription & Expiration Date
   const userDoc = await User.findByIdAndUpdate(
     user._id,
-    { subscription: plan },
+    { 
+      subscription: plan,
+      subscriptionExpiresAt: expiresAtDate
+    },
     { new: true }
   );
 
@@ -177,7 +185,8 @@ exports.verifyPayment = asyncHandler(async (req, res) => {
   return res.status(httpStatus.OK).json({
     success: true,
     message: `Congratulations! Your subscription has been upgraded to ${plan} Plan.`,
-    subscription: plan
+    subscription: plan,
+    expiresAt: expiresAtDate
   });
 });
 
@@ -185,7 +194,21 @@ exports.verifyPayment = asyncHandler(async (req, res) => {
 // @route   GET /api/v1/subscriptions/current
 // @access  Private
 exports.getCurrentSubscription = asyncHandler(async (req, res) => {
-  const userPlan = req.user.subscription || 'Free';
+  const userDoc = await User.findById(req.user._id);
+
+  // Check if subscription has expired
+  if (
+    userDoc.subscription &&
+    userDoc.subscription !== 'Free' &&
+    userDoc.subscriptionExpiresAt &&
+    new Date() > new Date(userDoc.subscriptionExpiresAt)
+  ) {
+    userDoc.subscription = 'Free';
+    userDoc.subscriptionExpiresAt = null;
+    await userDoc.save();
+  }
+
+  const userPlan = userDoc.subscription || 'Free';
   const planDetails = SUBSCRIPTION_PLANS[userPlan] || SUBSCRIPTION_PLANS.Free;
 
   return res.status(httpStatus.OK).json({
@@ -195,7 +218,8 @@ exports.getCurrentSubscription = asyncHandler(async (req, res) => {
     downloads: planDetails.downloadLimit,
     ads: planDetails.ads,
     quality: planDetails.quality,
-    features: planDetails.features
+    features: planDetails.features,
+    expiresAt: userDoc.subscriptionExpiresAt
   });
 });
 

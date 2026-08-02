@@ -30,6 +30,21 @@ const protect = asyncHandler(async (req, res, next) => {
       return next(new ApiError(httpStatus.UNAUTHORIZED, 'User no longer exists'));
     }
 
+    // Auto-check plan tenure expiration
+    if (
+      req.user.subscription &&
+      req.user.subscription !== 'Free' &&
+      req.user.subscriptionExpiresAt &&
+      new Date() > new Date(req.user.subscriptionExpiresAt)
+    ) {
+      await User.findByIdAndUpdate(req.user._id, {
+        subscription: 'Free',
+        subscriptionExpiresAt: null
+      });
+      req.user.subscription = 'Free';
+      req.user.subscriptionExpiresAt = null;
+    }
+
     next();
   } catch (err) {
     return next(new ApiError(httpStatus.UNAUTHORIZED, 'Not authorized to access this route'));

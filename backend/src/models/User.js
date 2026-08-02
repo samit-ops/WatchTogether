@@ -38,6 +38,48 @@ const userSchema = new mongoose.Schema(
       enum: ['Free', 'Bronze', 'Silver', 'Gold'],
       default: 'Free',
     },
+    subscriptionExpiresAt: {
+      type: Date,
+      default: null,
+    },
+    themePreference: {
+      type: String,
+      enum: ['auto', 'light', 'dark'],
+      default: 'auto',
+    },
+    phoneNumber: {
+      type: String,
+      default: '',
+    },
+    city: {
+      type: String,
+      trim: true,
+      default: '',
+    },
+    pincode: {
+      type: String,
+      trim: true,
+      default: '',
+    },
+    knownDevices: [
+      {
+        deviceId: String,
+        city: String,
+        state: String,
+        country: String,
+        ip: String,
+        userAgent: String,
+        lastUsedAt: { type: Date, default: Date.now }
+      }
+    ],
+    otp: {
+      code: String,
+      expiresAt: Date,
+      purpose: {
+        type: String,
+        enum: ['LOGIN_NEW_DEVICE', 'FORGOT_PASSWORD', 'SIGNUP_VERIFICATION']
+      }
+    },
     isVerified: {
       type: Boolean,
       default: false,
@@ -49,14 +91,13 @@ const userSchema = new mongoose.Schema(
 );
 
 // Encrypt password using bcrypt
-userSchema.pre('save', async function (next) {
+userSchema.pre('save', async function () {
   if (!this.isModified('password')) {
-    return next();
+    return;
   }
 
   const salt = await bcrypt.genSalt(10);
   this.password = await bcrypt.hash(this.password, salt);
-  next();
 });
 
 // Match user entered password to hashed password in database

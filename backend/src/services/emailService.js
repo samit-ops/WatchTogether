@@ -54,9 +54,12 @@ const sendSubscriptionConfirmation = async ({ user, plan, amount, razorpayPaymen
         </div>
 
         <div style="background: #1E293B; padding: 20px; border-radius: 12px; margin-bottom: 20px;">
-          <h2 style="color: #F8FAFC; font-size: 20px; margin-top: 0;">Hello ${user.name},</h2>
-          <p style="color: #CBD5E1; font-size: 15px; line-height: 1.5;">
-            Thank you for upgrading your subscription! Your <strong>${plan} Plan</strong> is now active.
+          <h2 style="color: #10B981; font-size: 22px; margin-top: 0;">🎉 Congratulations ${user.name}!</h2>
+          <p style="color: #F8FAFC; font-size: 16px; line-height: 1.6; margin-bottom: 12px;">
+            Hey <strong>${user.name}</strong>, congratulations! You are now officially a <strong>${plan} Member</strong> on <strong>Watch Together</strong>!
+          </p>
+          <p style="color: #CBD5E1; font-size: 14px; line-height: 1.5; margin: 0;">
+            📎 Your official <strong>Watch Together PDF invoice receipt</strong> (<code>Invoice_${plan}_Receipt.pdf</code>) is attached to this email.
           </p>
         </div>
 
@@ -100,14 +103,72 @@ const sendSubscriptionConfirmation = async ({ user, plan, amount, razorpayPaymen
       </div>
     `;
 
+    let pdfAttachment = null;
+    try {
+      const PDFDocument = require('pdfkit');
+      pdfAttachment = await new Promise((resolve, reject) => {
+        const doc = new PDFDocument({ margin: 50 });
+        const buffers = [];
+        doc.on('data', buffers.push.bind(buffers));
+        doc.on('end', () => resolve(Buffer.concat(buffers)));
+        doc.on('error', reject);
+
+        // Header / Branding
+        doc.fillColor('#3B82F6').fontSize(24).text('Watch Together', { align: 'center' });
+        doc.fillColor('#64748B').fontSize(12).text('OFFICIAL INVOICE & RECEIPT', { align: 'center' });
+        doc.moveDown(1);
+        doc.moveTo(50, doc.y).lineTo(550, doc.y).strokeColor('#CBD5E1').stroke();
+        doc.moveDown(1);
+
+        // Customer Info
+        doc.fillColor('#1E293B').fontSize(14).text(`Customer Name: ${user.name}`);
+        doc.fillColor('#475569').fontSize(11).text(`Email Address: ${user.email}`);
+        doc.text(`Transaction Date: ${formattedDate}`);
+        doc.moveDown(1);
+
+        // Transaction Table / Summary Box
+        doc.fillColor('#3B82F6').fontSize(16).text(`Subscription Plan: ${plan} Plan`);
+        doc.fillColor('#10B981').fontSize(14).text(`Amount Paid: INR ${amount}`);
+        doc.fillColor('#475569').fontSize(11).text(`Payment ID: ${razorpayPaymentId || 'N/A'}`);
+        doc.text(`Order ID: ${razorpayOrderId || 'N/A'}`);
+        doc.moveDown(1);
+
+        // Benefits
+        doc.fillColor('#1E293B').fontSize(12).text('Unlocked Features:');
+        doc.moveDown(0.5);
+        (features || []).forEach(f => {
+          doc.fillColor('#10B981').fontSize(10).text(`  - ${f}`);
+        });
+
+        doc.moveDown(2);
+        doc.fillColor('#94A3B8').fontSize(10).text('Thank you for subscribing to Watch Together!', { align: 'center' });
+        doc.end();
+      });
+    } catch (pdfErr) {
+      logger.error('PDF Generation error:', pdfErr);
+    }
+
     if (transporter) {
-      const info = await transporter.sendMail({
+      const mailOptions = {
         from: process.env.SMTP_FROM || '"Watch Together" <no-reply@watchtogether.com>',
         to: user.email,
-        subject: `Payment Confirmed: Watch Together ${plan} Plan Invoice`,
+        subject: `🎉 Congratulations! You are now a ${plan} Member - Watch Together Invoice`,
         html: htmlContent
-      });
-      logger.info(`[Email] Subscription invoice sent to ${user.email}`);
+      };
+
+      if (pdfAttachment) {
+        const sanitizedName = (user.name || 'User').replace(/[^a-zA-Z0-9]/g, '_');
+        mailOptions.attachments = [
+          {
+            filename: `Invoice_${plan}_${sanitizedName}.pdf`,
+            content: pdfAttachment,
+            contentType: 'application/pdf'
+          }
+        ];
+      }
+
+      const info = await transporter.sendMail(mailOptions);
+      logger.info(`[Email] Subscription invoice sent to ${user.email} with PDF attachment`);
 
       const previewUrl = nodemailer.getTestMessageUrl(info);
       if (previewUrl) {
@@ -136,7 +197,76 @@ const sendInvoiceEmail = async ({ user, paymentRecord }) => {
   });
 };
 
+const sendOtpEmail = async ({ user, otpCode, purpose = 'LOGIN_NEW_DEVICE' }) => {
+  try {
+    const transporter = await createTransporter();
+    if (!transporter) return false;
+
+    const isReset = purpose === 'FORGOT_PASSWORD';
+    const isSignup = purpose === 'SIGNUP_VERIFICATION';
+    const title = isSignup ? '🎉 Welcome! Verify Your Account' : isReset ? 'Password Reset Verification Code' : 'New Device Security Verification';
+    const description = isSignup
+      ? 'Thank you for registering on Watch Together! Please enter the 6-digit verification OTP code below to activate your account.'
+      : isReset
+      ? 'You requested to reset your Watch Together password. Use the verification OTP code below to proceed.'
+      : 'We noticed a login attempt to your Watch Together account from a new location or device. Please verify your identity using the OTP code below.';
+
+    const htmlContent = `
+      <div style="font-family: Arial, sans-serif; max-width: 550px; margin: 0 auto; background: #0F172A; color: #F8FAFC; padding: 30px; border-radius: 16px;">
+        <div style="text-align: center; margin-bottom: 24px;">
+          <h1 style="color: #3B82F6; margin: 0;">Watch Together</h1>
+          <p style="color: #94A3B8; font-size: 14px; margin-top: 4px;">Security Verification System</p>
+        </div>
+
+        <div style="background: #1E293B; padding: 24px; border-radius: 12px; margin-bottom: 24px; text-align: center;">
+          <h2 style="color: #F8FAFC; font-size: 20px; margin-top: 0;">${title}</h2>
+          <p style="color: #CBD5E1; font-size: 14px; line-height: 1.6; margin-bottom: 20px;">
+            ${description}
+          </p>
+
+          <div style="background: #0F172A; border: 2px dashed #3B82F6; padding: 16px; border-radius: 12px; display: inline-block; margin-bottom: 16px;">
+            <span style="font-family: monospace; font-size: 32px; font-weight: bold; letter-spacing: 8px; color: #10B981;">${otpCode}</span>
+          </div>
+
+          <p style="color: #94A3B8; font-size: 13px; margin: 0;">
+            ⏳ This code is valid for <strong>10 minutes</strong>. Do not share it with anyone.
+          </p>
+        </div>
+
+        <div style="text-align: center; color: #64748B; font-size: 12px;">
+          <p>If you did not initiate this request, please change your password immediately.</p>
+          <p>© 2026 Watch Together. All rights reserved.</p>
+        </div>
+      </div>
+    `;
+
+    const mailOptions = {
+      from: process.env.SMTP_FROM || '"Watch Together Security" <no-reply@watchtogether.com>',
+      to: user.email,
+      subject: `🔐 [Watch Together] ${otpCode} is your ${isReset ? 'Password Reset' : 'Security'} Code`,
+      html: htmlContent
+    };
+
+    const info = await transporter.sendMail(mailOptions);
+    logger.info(`[OTP Email Dispatched] ID: ${info.messageId} to ${user.email} (OTP: ${otpCode})`);
+
+    const previewUrl = nodemailer.getTestMessageUrl(info);
+    if (previewUrl) {
+      console.log('\n======================================================');
+      console.log(`✉️ [EMAIL PREVIEW URL (OTP)]: ${previewUrl}`);
+      console.log(`🔐 OTP Code: ${otpCode}`);
+      console.log('======================================================\n');
+    }
+
+    return true;
+  } catch (error) {
+    logger.error(`[Email Error] Failed to send OTP email: ${error.message}`);
+    return false;
+  }
+};
+
 module.exports = {
   sendSubscriptionConfirmation,
-  sendInvoiceEmail
+  sendInvoiceEmail,
+  sendOtpEmail
 };

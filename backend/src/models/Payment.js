@@ -44,6 +44,9 @@ const paymentSchema = new mongoose.Schema({
   paidAt: {
     type: Date
   },
+  expiresAt: {
+    type: Date
+  },
   createdAt: {
     type: Date,
     default: Date.now

@@ -58,25 +58,25 @@ export default function Home() {
   return (
     <div className="min-h-screen pb-12">
       {/* Hero Section */}
-      <section className="relative w-full h-[60vh] sm:h-[70vh] flex items-center justify-center overflow-hidden border-b border-border">
-        <div className="absolute inset-0 bg-gradient-to-t from-background via-background/60 to-transparent z-10" />
+      <section className="relative w-full h-[60vh] sm:h-[70vh] flex items-center justify-center overflow-hidden border-b border-border bg-surface/30">
+        <div className="absolute inset-0 bg-gradient-to-t from-background via-background/80 to-transparent z-10" />
         
         {trending.length > 0 ? (
           <img 
             src={trending[0].thumbnail} 
             alt="Hero" 
-            className="absolute inset-0 w-full h-full object-cover blur-sm opacity-50 scale-105"
+            className="absolute inset-0 w-full h-full object-cover blur-sm opacity-30 scale-105"
           />
         ) : (
-          <div className="absolute inset-0 bg-gradient-to-br from-indigo-900/40 to-black" />
+          <div className="absolute inset-0 bg-gradient-to-br from-primary/20 via-background to-background" />
         )}
         
         <div className="relative z-20 container mx-auto px-4 max-w-7xl flex flex-col items-center sm:items-start text-center sm:text-left gap-6">
           <span className="px-3 py-1 text-xs font-semibold uppercase tracking-wider text-primary bg-primary/10 rounded-full border border-primary/20 backdrop-blur-md">
             Watch Party Ready
           </span>
-          <h1 className="text-4xl sm:text-6xl md:text-7xl font-extrabold tracking-tight text-white max-w-3xl leading-tight">
-            Sync, Watch, and <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-blue-400">Interact.</span>
+          <h1 className="text-4xl sm:text-6xl md:text-7xl font-extrabold tracking-tight text-text max-w-3xl leading-tight">
+            Sync, Watch, and <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-blue-500">Interact.</span>
           </h1>
           <p className="text-lg sm:text-xl text-muted max-w-xl font-medium">
             Experience movies and shows together with friends in real-time. Premium streaming meets social interaction.
