@@ -25,7 +25,13 @@ export default function UploadVideo() {
 
   const handleVideoSelect = (e) => {
     if (e.target.files && e.target.files[0]) {
-      setVideoFile(e.target.files[0]);
+      const file = e.target.files[0];
+      if (file.size > 4 * 1024 * 1024 * 1024) {
+        setError('Video file exceeds maximum allowed limit of 4GB.');
+        toast.error('Video file exceeds maximum allowed limit of 4GB.');
+        return;
+      }
+      setVideoFile(file);
     }
   };
 
@@ -212,7 +218,7 @@ export default function UploadVideo() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t border-border">
             {/* Video File Upload */}
             <div>
-              <label className="block text-sm font-medium text-text mb-2">Video File * (Max 100MB)</label>
+              <label className="block text-sm font-medium text-text mb-2">Video File * (Max 4GB - Full Movies Supported)</label>
               <input 
                 type="file" 
                 accept="video/*" 

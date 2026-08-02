@@ -6,7 +6,7 @@ const storage = multer.memoryStorage();
 const upload = multer({
   storage,
   limits: {
-    fileSize: 100 * 1024 * 1024, // 100MB max limit for phase 3 video
+    fileSize: 4 * 1024 * 1024 * 1024, // 4GB max limit for full-length movies & high-res video uploads
   },
   fileFilter: (req, file, cb) => {
     if (file.mimetype.startsWith('video/') || file.mimetype.startsWith('image/')) {

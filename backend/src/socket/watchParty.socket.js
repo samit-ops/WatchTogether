@@ -46,9 +46,7 @@ const handleParticipantLeave = async (io, socket, roomId) => {
       
       room.participants.splice(participantIndex, 1);
 
-      if (room.participants.length === 0) {
-        room.status = 'ended';
-      } else if (wasHost) {
+      if (wasHost && room.participants.length > 0) {
         room.participants.sort((a, b) => new Date(a.joinedAt) - new Date(b.joinedAt));
         room.participants[0].role = 'host';
         room.host = room.participants[0].user;
