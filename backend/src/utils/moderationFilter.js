@@ -2,8 +2,10 @@
 // Detects abusive words, spam links, and repeated special characters
 
 const PROFANITY_LIST = [
-  'abuse', 'abusive', 'bitch', 'bastard', 'fuck', 'shit', 'asshole', 'cunt', 'dick',
-  'slut', 'whore', 'idiot', 'stupid', 'dumb', 'scam', 'spam', 'hate', 'nude', 'sex'
+  'abuse', 'abusive', 'bitch', 'bastard', 'fuck', 'fucking', 'motherfucker', 'motherfuck', 
+  'shit', 'asshole', 'cunt', 'dick', 'slut', 'whore', 'idiot', 'stupid', 'dumb', 'scam', 
+  'spam', 'hate', 'nude', 'sex', 'chutiya', 'gandu', 'bhenchod', 'madarchod', 'harami',
+  'kutta', 'kamina', 'saala', 'randi', 'bhosdike', 'mc', 'bc', 'bsdk'
 ];
 
 /**
@@ -37,13 +39,14 @@ function validateCommentContent(text) {
     return { isClean: false, error: 'Spam detected: Comments cannot contain multiple external links.' };
   }
 
-  // 3. Check for abusive / profane words
+  // 3. Check for abusive / profane words (Exact word match + substring match)
   const lowerText = trimmed.toLowerCase();
-  const words = lowerText.split(/\s+/);
+  const cleanText = lowerText.replace(/[^a-z0-9\s]/gi, '');
+  const words = cleanText.split(/\s+/);
 
-  for (const word of words) {
-    const cleanWord = word.replace(/[^a-z0-9]/gi, '');
-    if (PROFANITY_LIST.includes(cleanWord)) {
+  for (const profanity of PROFANITY_LIST) {
+    // Check full text substring match or exact word match
+    if (words.includes(profanity) || (profanity.length >= 4 && cleanText.includes(profanity))) {
       return { isClean: false, error: 'Comment contains inappropriate or abusive language.' };
     }
   }
