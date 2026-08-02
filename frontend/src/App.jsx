@@ -1,11 +1,14 @@
 import React, { Suspense } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { LazyMotion, domAnimation } from 'framer-motion';
+import '@fontsource/inter';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Loader } from '@/components/ui/Loader';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { SocketProvider } from '@/contexts/SocketContext';
 import { ThemeProvider } from '@/contexts/ThemeContext';
 import { ProtectedRoute } from '@/components/layout/ProtectedRoute';
+import { CursorGlow } from '@/components/ui/CursorGlow';
 
 // Lazy load pages for performance
 const Home = React.lazy(() => import('@/pages/Home'));
@@ -25,8 +28,10 @@ function App() {
   return (
     <AuthProvider>
       <ThemeProvider>
+        <LazyMotion features={domAnimation}>
         <SocketProvider>
         <BrowserRouter>
+          <CursorGlow />
           <Suspense fallback={<div className="flex h-screen w-screen items-center justify-center"><Loader size={32} /></div>}>
           <Routes>
             <Route element={<MainLayout />}>
@@ -53,6 +58,7 @@ function App() {
         </Suspense>
         </BrowserRouter>
         </SocketProvider>
+        </LazyMotion>
       </ThemeProvider>
     </AuthProvider>
   );

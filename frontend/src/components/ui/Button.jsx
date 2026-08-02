@@ -1,12 +1,16 @@
 import React from 'react';
+import { motion } from 'framer-motion';
 import { cn } from '@/utils/cn';
+import { usePrefersReducedMotion } from '@/components/motion';
 
 const Button = React.forwardRef(({ className, variant = 'primary', size = 'md', children, isLoading, ...props }, ref) => {
-  const baseStyles = 'inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:pointer-events-none disabled:opacity-50';
+  const prefersReducedMotion = usePrefersReducedMotion();
+
+  const baseStyles = 'inline-flex items-center justify-center rounded-xl text-sm font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-50';
   
   const variants = {
-    primary: 'bg-primary text-white hover:bg-blue-600 shadow-sm',
-    secondary: 'bg-surface text-text hover:bg-border shadow-sm',
+    primary: 'btn-gradient shadow-md',
+    secondary: 'bg-surface text-text hover:bg-surface-light shadow-sm border border-border',
     outline: 'border border-border bg-transparent hover:bg-surface text-text',
     ghost: 'hover:bg-surface text-text',
     danger: 'bg-red-500 text-white hover:bg-red-600 shadow-sm',
@@ -14,16 +18,24 @@ const Button = React.forwardRef(({ className, variant = 'primary', size = 'md', 
 
   const sizes = {
     sm: 'h-8 px-3 text-xs',
-    md: 'h-10 px-4 py-2',
+    md: 'h-10 px-5 py-2',
     lg: 'h-12 px-8 text-base',
     icon: 'h-10 w-10',
   };
 
+  const MotionWrapper = prefersReducedMotion ? 'button' : motion.button;
+  const motionProps = prefersReducedMotion ? {} : {
+    whileHover: { scale: 1.015 },
+    whileTap: { scale: 0.97 },
+    transition: { duration: 0.15, ease: [0.25, 0.4, 0, 1] },
+  };
+
   return (
-    <button
+    <MotionWrapper
       ref={ref}
       className={cn(baseStyles, variants[variant], sizes[size], className)}
       disabled={isLoading || props.disabled}
+      {...motionProps}
       {...props}
     >
       {isLoading && (
@@ -33,7 +45,7 @@ const Button = React.forwardRef(({ className, variant = 'primary', size = 'md', 
         </svg>
       )}
       {children}
-    </button>
+    </MotionWrapper>
   );
 });
 Button.displayName = 'Button';

@@ -1,5 +1,8 @@
 import React from 'react';
+import { motion } from 'framer-motion';
 import { Check, Sparkles, Zap, Shield, Crown } from 'lucide-react';
+import { MagneticButton } from '@/components/ui/MagneticButton';
+import { usePrefersReducedMotion } from '@/components/motion';
 
 const PLAN_RANKS = {
   Free: 0,
@@ -16,26 +19,34 @@ const PLAN_ICONS = {
 };
 
 export function SubscriptionCard({ plan, currentPlan, onSelect, loadingPlan }) {
+  const prefersReducedMotion = usePrefersReducedMotion();
   const currentRank = PLAN_RANKS[currentPlan || 'Free'] || 0;
   const cardRank = PLAN_RANKS[plan.name] || 0;
 
   const isCurrent = currentPlan === plan.name;
   const isLower = cardRank < currentRank;
-  const isHigher = cardRank > currentRank;
   const Icon = PLAN_ICONS[plan.name] || Sparkles;
 
   const isPopular = plan.name === 'Silver';
 
+  const MotionWrapper = prefersReducedMotion ? 'div' : motion.div;
+  const motionProps = prefersReducedMotion ? {} : {
+    whileHover: { scale: 1.015, y: -3 },
+    whileTap: { scale: 0.98 },
+    transition: { duration: 0.3, ease: [0.25, 0.4, 0, 1] },
+  };
+
   return (
-    <div
-      className={`relative flex flex-col justify-between rounded-3xl p-6 transition-all duration-300 ${
+    <MotionWrapper
+      {...motionProps}
+      className={`relative flex flex-col justify-between rounded-3xl p-6 transition-all duration-300 card-hover ${
         isPopular
-          ? 'bg-gradient-to-b from-primary/20 via-surface to-surface border-2 border-primary shadow-2xl scale-105 z-10'
-          : 'bg-surface border border-border hover:border-primary/40 shadow-lg'
+          ? 'glass-card border-2 border-primary shadow-2xl z-10 glow-primary'
+          : 'glass-card border border-border shadow-lg'
       }`}
     >
       {isPopular && (
-        <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 px-4 py-1 rounded-full bg-primary text-white text-xs font-bold uppercase tracking-wider shadow-lg flex items-center gap-1">
+        <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 px-4 py-1 rounded-full bg-gradient-to-r from-[var(--gradient-start)] to-[var(--gradient-end)] text-white text-xs font-bold uppercase tracking-wider shadow-lg flex items-center gap-1">
           <Sparkles className="w-3 h-3" /> Most Popular
         </div>
       )}
@@ -45,7 +56,7 @@ export function SubscriptionCard({ plan, currentPlan, onSelect, loadingPlan }) {
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-3">
             <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
-              isCurrent ? 'bg-primary text-white' : 'bg-primary/10 text-primary'
+              isCurrent ? 'bg-primary text-white shadow-md' : 'bg-primary/10 text-primary'
             }`}>
               <Icon className="w-5 h-5" />
             </div>
@@ -104,15 +115,17 @@ export function SubscriptionCard({ plan, currentPlan, onSelect, loadingPlan }) {
             Current plan is higher
           </button>
         ) : (
-          <button
+          <MagneticButton
+            as="button"
             onClick={() => onSelect(plan)}
             disabled={loadingPlan === plan.name}
-            className="w-full py-3 bg-gradient-to-r from-primary to-blue-600 hover:opacity-95 text-white font-bold text-sm rounded-xl transition-all shadow-md flex items-center justify-center gap-2 disabled:opacity-50"
+            className="w-full py-3 btn-gradient font-bold text-sm rounded-xl shadow-md flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
+            strength={0.1}
           >
-            {loadingPlan === plan.name ? 'Processing...' : `Upgrade to ${plan.name}`}
-          </button>
+            <span>{loadingPlan === plan.name ? 'Processing...' : `Upgrade to ${plan.name}`}</span>
+          </MagneticButton>
         )}
       </div>
-    </div>
+    </MotionWrapper>
   );
 }
