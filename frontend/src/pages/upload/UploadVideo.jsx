@@ -3,12 +3,14 @@ import { useNavigate } from 'react-router-dom';
 import videoService from '@/services/video.service';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
-import { UploadCloud, FileVideo, Image as ImageIcon, X } from 'lucide-react';
+import { UploadCloud, FileVideo, Image as ImageIcon, X, Globe, Users } from 'lucide-react';
+import { toast } from '@/utils/toast';
 
 export default function UploadVideo() {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [category, setCategory] = useState('Movies');
+  const [uploadType, setUploadType] = useState('platform'); // 'platform' or 'watchparty'
   const [videoFile, setVideoFile] = useState(null);
   const [thumbnailFile, setThumbnailFile] = useState(null);
   const [tags, setTags] = useState('');
@@ -46,29 +48,32 @@ export default function UploadVideo() {
     formData.append('title', title);
     formData.append('description', description);
     formData.append('category', category);
+    formData.append('source', uploadType);
     formData.append('tags', tags);
     formData.append('video', videoFile);
     formData.append('thumbnail', thumbnailFile);
 
     setLoading(true);
-    setProgress(10); // Fake progress for visual feedback
+    setProgress(1);
 
     try {
-      // simulate progress visual
-      const interval = setInterval(() => {
-        setProgress(prev => prev < 90 ? prev + 5 : prev);
-      }, 500);
-
-      await videoService.uploadVideo(formData);
+      await videoService.uploadVideo(formData, (percent) => {
+        // Scale to 95% to allow Cloudinary server processing time
+        const scaledPercent = Math.min(95, Math.max(1, percent));
+        setProgress(scaledPercent);
+      });
       
-      clearInterval(interval);
       setProgress(100);
+      toast.success('Video uploaded successfully!');
       
       setTimeout(() => {
         navigate('/');
-      }, 1000);
+      }, 800);
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to upload video. Please ensure Cloudinary is configured and files are valid.');
+      console.error('Video upload error:', err);
+      const errMsg = err.response?.data?.message || 'Failed to upload video. Please ensure files are valid.';
+      setError(errMsg);
+      toast.error(errMsg);
       setProgress(0);
     } finally {
       setLoading(false);
@@ -79,7 +84,7 @@ export default function UploadVideo() {
     <div className="container mx-auto px-4 py-8 max-w-4xl">
       <div className="rounded-2xl border border-border bg-surface/50 p-8 shadow-xl backdrop-blur-sm">
         <h1 className="text-3xl font-bold text-text mb-2">Upload Video</h1>
-        <p className="text-muted mb-8">Share your content to start watching with friends.</p>
+        <p className="text-muted mb-8">Select video destination and share your content.</p>
 
         {error && (
           <div className="mb-6 rounded-md bg-red-500/10 p-4 border border-red-500/20 text-red-500 text-sm">
@@ -88,6 +93,63 @@ export default function UploadVideo() {
         )}
 
         <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Upload Destination Option Selector */}
+          <div>
+            <label className="block text-sm font-semibold text-text mb-2">
+              Select Video Destination *
+            </label>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* Option 1: Upload to Platform */}
+              <button
+                type="button"
+                onClick={() => setUploadType('platform')}
+                disabled={loading}
+                className={`p-4 rounded-xl border text-left transition-all flex flex-col gap-2 ${
+                  uploadType === 'platform'
+                    ? 'bg-primary/10 border-primary shadow-md ring-1 ring-primary'
+                    : 'bg-background/50 border-border hover:bg-surface text-muted'
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-text flex items-center gap-2 text-base">
+                    <Globe className="w-5 h-5 text-primary" />
+                    Upload to Platform
+                  </span>
+                  {uploadType === 'platform' && (
+                    <span className="w-2.5 h-2.5 rounded-full bg-primary animate-pulse" />
+                  )}
+                </div>
+                <p className="text-xs text-muted leading-relaxed">
+                  Publishes video to the public platform library. All users can watch, comment, like, dislike, and share.
+                </p>
+              </button>
+
+              {/* Option 2: Upload to Watch Party */}
+              <button
+                type="button"
+                onClick={() => setUploadType('watchparty')}
+                disabled={loading}
+                className={`p-4 rounded-xl border text-left transition-all flex flex-col gap-2 ${
+                  uploadType === 'watchparty'
+                    ? 'bg-primary/10 border-primary shadow-md ring-1 ring-primary'
+                    : 'bg-background/50 border-border hover:bg-surface text-muted'
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-text flex items-center gap-2 text-base">
+                    <Users className="w-5 h-5 text-purple-400" />
+                    Upload to Watch Party
+                  </span>
+                  {uploadType === 'watchparty' && (
+                    <span className="w-2.5 h-2.5 rounded-full bg-purple-400 animate-pulse" />
+                  )}
+                </div>
+                <p className="text-xs text-muted leading-relaxed">
+                  Saves video for live Watch Party sessions with friends in real-time video/audio sync rooms.
+                </p>
+              </button>
+            </div>
+          </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-4">
               <div>

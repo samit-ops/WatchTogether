@@ -17,7 +17,8 @@ const startServer = async () => {
   
   // Initialize Socket.IO
   const initSocket = require('./src/socket');
-  initSocket(httpServer);
+  const io = initSocket(httpServer);
+  app.set('io', io);
   
   const server = httpServer.listen(env.PORT, () => {
     logger.info(`Server running in ${env.NODE_ENV} mode on port ${env.PORT}`);

@@ -1,14 +1,15 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import videoService from '@/services/video.service';
 import { CustomVideoPlayer } from '@/components/video/CustomVideoPlayer';
 import { Loader } from '@/components/ui/Loader';
 import { VideoCard } from '@/components/video/VideoCard';
-import { ThumbsUp, Share2, Plus, Flag, Download } from 'lucide-react';
+import { ThumbsUp, ThumbsDown, Share2, Plus, Flag, Download } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import downloadService from '@/services/download.service';
 import { toast } from '@/utils/toast';
+import { CommentSection } from '@/components/comments/CommentSection';
 
 export default function VideoDetails() {
   const { id } = useParams();
@@ -25,6 +26,46 @@ export default function VideoDetails() {
   const showToast = (msg) => {
     setToastMsg(msg);
     setTimeout(() => setToastMsg(''), 3000);
+  };
+
+  const handleVideoLike = async () => {
+    if (!user) {
+      toast.info('Please log in to like videos.');
+      return;
+    }
+    try {
+      const res = await videoService.likeVideo(id);
+      const data = res.data || res;
+      setVideo(prev => ({
+        ...prev,
+        likes: data.likes,
+        dislikes: data.dislikes,
+        isLiked: data.isLiked,
+        isDisliked: data.isDisliked
+      }));
+    } catch (err) {
+      toast.error('Failed to update reaction.');
+    }
+  };
+
+  const handleVideoDislike = async () => {
+    if (!user) {
+      toast.info('Please log in to dislike videos.');
+      return;
+    }
+    try {
+      const res = await videoService.dislikeVideo(id);
+      const data = res.data || res;
+      setVideo(prev => ({
+        ...prev,
+        likes: data.likes,
+        dislikes: data.dislikes,
+        isLiked: data.isLiked,
+        isDisliked: data.isDisliked
+      }));
+    } catch (err) {
+      toast.error('Failed to update reaction.');
+    }
   };
 
   const handleDownload = async () => {
@@ -82,6 +123,8 @@ export default function VideoDetails() {
     }
   };
 
+  const viewedRef = useRef(null);
+
   useEffect(() => {
     const fetchVideoData = async () => {
       setLoading(true);
@@ -92,15 +135,25 @@ export default function VideoDetails() {
           videoService.getAllVideos()
         ]);
         
-        setVideo(videoRes.video);
-        
-        // Filter out current video for related list
+        const fetchedVideo = videoRes.video;
         setRelatedVideos(
           allVideosRes.videos.filter(v => v._id !== id).slice(0, 10)
         );
         
-        // Background call to increment views
-        videoService.incrementViews(id).catch(e => console.error(e));
+        // Increment view count EXACTLY ONCE (+1) and update view count in UI
+        if (viewedRef.current !== id) {
+          viewedRef.current = id;
+          try {
+            const incRes = await videoService.incrementViews(id);
+            const data = incRes.data || incRes;
+            const updatedViews = data.views !== undefined ? data.views : (fetchedVideo.views + 1);
+            setVideo({ ...fetchedVideo, views: updatedViews });
+          } catch (e) {
+            setVideo(fetchedVideo);
+          }
+        } else {
+          setVideo(fetchedVideo);
+        }
         
       } catch (err) {
         setError('Video not found or unavailable.');
@@ -167,14 +220,26 @@ export default function VideoDetails() {
               </div>
               
               <div className="flex items-center gap-2 overflow-x-auto pb-2 sm:pb-0 hide-scrollbar">
-                <button 
-                  onClick={() => showToast('Coming Soon')}
-                  className="flex items-center gap-2 px-4 py-2 rounded-full bg-surface hover:bg-surface-light transition-colors whitespace-nowrap text-sm font-medium"
-                  title="Coming Soon"
-                >
-                  <ThumbsUp className="h-4 w-4" />
-                  {video.likes || 0}
-                </button>
+                {/* Like & Dislike Video Pill */}
+                <div className="flex items-center bg-surface border border-border rounded-full p-0.5 shadow-sm">
+                  <button 
+                    onClick={handleVideoLike}
+                    className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-l-full hover:bg-surface-light transition-colors text-sm font-medium ${video.isLiked ? 'text-primary font-bold' : ''}`}
+                    title="Like video"
+                  >
+                    <ThumbsUp className={`h-4 w-4 ${video.isLiked ? 'fill-primary text-primary' : ''}`} />
+                    <span>{video.likes || 0}</span>
+                  </button>
+                  <div className="w-[1px] h-4 bg-border" />
+                  <button 
+                    onClick={handleVideoDislike}
+                    className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-r-full hover:bg-surface-light transition-colors text-sm font-medium ${video.isDisliked ? 'text-red-400 font-bold' : ''}`}
+                    title="Dislike video"
+                  >
+                    <ThumbsDown className={`h-4 w-4 ${video.isDisliked ? 'fill-red-400 text-red-400' : ''}`} />
+                    {video.dislikes > 0 && <span>{video.dislikes}</span>}
+                  </button>
+                </div>
                 <button 
                   onClick={handleShare}
                   className="flex items-center gap-2 px-4 py-2 rounded-full bg-surface hover:bg-surface-light transition-colors whitespace-nowrap text-sm font-medium"
@@ -223,6 +288,13 @@ export default function VideoDetails() {
                 {video.description}
               </p>
             </div>
+
+            {/* Real-time Multilingual YouTube-Style Comment Section */}
+            <CommentSection 
+              videoId={id} 
+              videoUploaderId={video.uploadedBy?._id || video.uploadedBy} 
+              videoSource={video.source}
+            />
           </div>
         </div>
 

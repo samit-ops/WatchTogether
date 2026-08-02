@@ -21,7 +21,7 @@ app.use(cors({
 // Rate Limiting
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // Limit each IP to 100 requests per `window`
+  max: process.env.NODE_ENV === 'production' ? 1000 : 5000, // Allow active dev testing & video browsing
   standardHeaders: true,
   legacyHeaders: false,
 });
@@ -33,6 +33,7 @@ const videoRoutes = require('./routes/videoRoutes');
 const roomRoutes = require('./routes/roomRoutes');
 const downloadRoutes = require('./routes/downloadRoutes');
 const subscriptionRoutes = require('./routes/subscriptionRoutes');
+const commentRoutes = require('./routes/commentRoutes');
 
 // Body Parsing & Logging
 app.use(express.json({ limit: '10kb' }));
@@ -47,6 +48,7 @@ app.use('/api/v1/videos', videoRoutes);
 app.use('/api/v1/rooms', roomRoutes);
 app.use('/api/v1/downloads', downloadRoutes);
 app.use('/api/v1/subscriptions', subscriptionRoutes);
+app.use('/api/v1/comments', commentRoutes);
 
 // Health Check Endpoint
 app.get('/health', (req, res) => {

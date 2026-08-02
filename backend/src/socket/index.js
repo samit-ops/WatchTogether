@@ -39,6 +39,7 @@ const initSocket = (httpServer) => {
   const chatHandler = require('./chat.socket');
   const videoSyncHandler = require('./videoSync.socket');
   const webrtcHandler = require('./webrtc.socket');
+  const commentHandler = require('./comment.socket');
 
   io.on('connection', (socket) => {
     logger.info(`Socket connected: ${socket.id} (User: ${socket.user.name})`);
@@ -47,6 +48,7 @@ const initSocket = (httpServer) => {
     chatHandler(io, socket);
     videoSyncHandler(io, socket);
     webrtcHandler(io, socket);
+    commentHandler(io, socket);
     
     socket.on('disconnect', () => {
       logger.info(`Socket disconnected: ${socket.id}`);

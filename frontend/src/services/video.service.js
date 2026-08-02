@@ -16,13 +16,20 @@ const videoService = {
     return response.data;
   },
 
-  uploadVideo: async (formData) => {
+  uploadVideo: async (formData, onProgress) => {
     const response = await api.post('/v1/videos/upload', formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
       },
+      timeout: 0, // Unlimited timeout for large video uploads
+      onUploadProgress: (progressEvent) => {
+        if (progressEvent.total && onProgress) {
+          const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+          onProgress(percentCompleted);
+        }
+      }
     });
-    return response.data;
+    return response.data || response;
   },
 
   updateVideo: async (id, data) => {
@@ -32,6 +39,21 @@ const videoService = {
 
   deleteVideo: async (id) => {
     const response = await api.delete(`/v1/videos/${id}`);
+    return response.data;
+  },
+
+  likeVideo: async (id) => {
+    const response = await api.post(`/v1/videos/${id}/like`);
+    return response.data;
+  },
+
+  dislikeVideo: async (id) => {
+    const response = await api.post(`/v1/videos/${id}/dislike`);
+    return response.data;
+  },
+
+  getMyVideos: async () => {
+    const response = await api.get('/v1/videos/me');
     return response.data;
   }
 };

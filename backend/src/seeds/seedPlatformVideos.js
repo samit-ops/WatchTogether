@@ -13,7 +13,8 @@ const platformVideos = [
     category: 'Other',
     source: 'platform',
     views: 14200,
-    likes: 1250,
+    likes: 0,
+    dislikes: 0,
     tags: ['javascript', 'programming', 'webdev']
   },
   {
@@ -25,7 +26,8 @@ const platformVideos = [
     category: 'Documentaries',
     source: 'platform',
     views: 28900,
-    likes: 3400,
+    likes: 0,
+    dislikes: 0,
     tags: ['ai', 'technology', 'documentary']
   },
   {
@@ -37,7 +39,8 @@ const platformVideos = [
     category: 'Other',
     source: 'platform',
     views: 18700,
-    likes: 2150,
+    likes: 0,
+    dislikes: 0,
     tags: ['travel', 'nature', 'switzerland']
   },
   {
@@ -49,7 +52,8 @@ const platformVideos = [
     category: 'Anime',
     source: 'platform',
     views: 45000,
-    likes: 5800,
+    likes: 0,
+    dislikes: 0,
     tags: ['music', 'lofi', 'cyberpunk']
   },
   {
@@ -61,7 +65,8 @@ const platformVideos = [
     category: 'Documentaries',
     source: 'platform',
     views: 31200,
-    likes: 2890,
+    likes: 0,
+    dislikes: 0,
     tags: ['ted', 'science', 'quantum']
   },
   {
@@ -73,7 +78,8 @@ const platformVideos = [
     category: 'Movies',
     source: 'platform',
     views: 98000,
-    likes: 12400,
+    likes: 0,
+    dislikes: 0,
     tags: ['trailer', 'movie', 'scifi']
   },
   {
@@ -85,7 +91,8 @@ const platformVideos = [
     category: 'Documentaries',
     source: 'platform',
     views: 22400,
-    likes: 1950,
+    likes: 0,
+    dislikes: 0,
     tags: ['ocean', 'wildlife', 'nature']
   },
   {
@@ -97,7 +104,8 @@ const platformVideos = [
     category: 'Sports',
     source: 'platform',
     views: 39500,
-    likes: 4120,
+    likes: 0,
+    dislikes: 0,
     tags: ['sports', 'biking', 'extreme']
   }
 ];
@@ -109,6 +117,21 @@ const seedPlatformVideos = async () => {
       logger.warn('[Seed] No user found in database to assign platform video uploader');
       return;
     }
+
+    // Reset video like & dislike counts to 0 for all videos in database
+    await Video.updateMany({ likes: { $gt: 0 } }, { $set: { likes: 0, dislikes: 0, likedBy: [], dislikedBy: [] } });
+
+    // Ensure all platform videos remain source: 'platform'
+    await Video.updateMany(
+      { title: { $in: ['car', 'car video'] } },
+      { $set: { source: 'platform', isPublic: true } }
+    );
+
+    // Ensure all pre-loaded platform videos are set to source: 'platform'
+    await Video.updateMany(
+      { title: { $in: platformVideos.map(v => v.title) } },
+      { $set: { source: 'platform', isPublic: true } }
+    );
 
     // Force replace any broken gtv-videos-bucket URLs in database
     const brokenGtvVideos = await Video.find({ videoUrl: { $regex: /gtv-videos-bucket/ } });

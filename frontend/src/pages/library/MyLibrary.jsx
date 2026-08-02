@@ -22,14 +22,9 @@ export default function MyLibrary() {
   const fetchVideos = async () => {
     setLoading(true);
     try {
-      const data = await videoService.getAllVideos();
-      // Filter videos by current user safely
-      const userId = user?.id || user?._id;
-      const userVideos = data.videos.filter(v => {
-        const uploaderId = v.uploadedBy?._id || v.uploadedBy?.id || v.uploadedBy;
-        return String(uploaderId) === String(userId);
-      });
-      setVideos(userVideos);
+      const data = await videoService.getMyVideos();
+      const userVids = data.videos || data.data?.videos || [];
+      setVideos(userVids);
     } catch (err) {
       setError('Failed to load your library.');
     } finally {

@@ -41,8 +41,8 @@ const videoSchema = new mongoose.Schema(
     },
     source: {
       type: String,
-      enum: ['platform', 'user'],
-      default: 'user',
+      enum: ['platform', 'user', 'watchparty'],
+      default: 'platform',
     },
     isPublic: {
       type: Boolean,
@@ -65,6 +65,22 @@ const videoSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
+    dislikes: {
+      type: Number,
+      default: 0,
+    },
+    likedBy: [
+      {
+        type: mongoose.Schema.ObjectId,
+        ref: 'User',
+      },
+    ],
+    dislikedBy: [
+      {
+        type: mongoose.Schema.ObjectId,
+        ref: 'User',
+      },
+    ],
   },
   {
     timestamps: true,

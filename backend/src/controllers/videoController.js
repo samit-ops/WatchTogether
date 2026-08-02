@@ -5,11 +5,28 @@ const ApiResponse = require('../utils/ApiResponse');
 const httpStatus = require('../constants/httpStatus');
 const { uploadToCloudinary, isConfigured, deleteFromCloudinary } = require('../services/cloudinary.service');
 
-// @desc    Get all videos
+// @desc    Get all platform videos (home feed)
 // @route   GET /api/v1/videos
 // @access  Public
 exports.getVideos = asyncHandler(async (req, res, next) => {
-  const videos = await Video.find()
+  const query = { source: 'platform', isPublic: true };
+  if (req.query.category && req.query.category !== 'All') {
+    query.category = req.query.category;
+  }
+  const videos = await Video.find(query)
+    .populate('uploadedBy', 'name avatar')
+    .sort('-createdAt');
+
+  res.status(httpStatus.OK).json(
+    new ApiResponse(httpStatus.OK, { videos })
+  );
+});
+
+// @desc    Get videos uploaded by current logged-in user
+// @route   GET /api/v1/videos/me
+// @access  Private
+exports.getMyVideos = asyncHandler(async (req, res, next) => {
+  const videos = await Video.find({ uploadedBy: req.user._id })
     .populate('uploadedBy', 'name avatar')
     .sort('-createdAt');
 
@@ -28,8 +45,13 @@ exports.getVideo = asyncHandler(async (req, res, next) => {
     return next(new ApiError(httpStatus.NOT_FOUND, 'Video not found'));
   }
 
+  const doc = video.toObject();
+  const userId = req.user ? req.user._id.toString() : null;
+  doc.isLiked = userId ? (video.likedBy || []).some(id => id.toString() === userId) : false;
+  doc.isDisliked = userId ? (video.dislikedBy || []).some(id => id.toString() === userId) : false;
+
   res.status(httpStatus.OK).json(
-    new ApiResponse(httpStatus.OK, { video })
+    new ApiResponse(httpStatus.OK, { video: doc })
   );
 });
 
@@ -48,7 +70,7 @@ exports.incrementViews = asyncHandler(async (req, res, next) => {
   }
 
   res.status(httpStatus.OK).json(
-    new ApiResponse(httpStatus.OK, {}, 'View recorded')
+    new ApiResponse(httpStatus.OK, { views: video.views }, 'View recorded')
   );
 });
 
@@ -64,11 +86,13 @@ exports.uploadVideo = asyncHandler(async (req, res, next) => {
     return next(new ApiError(httpStatus.BAD_REQUEST, 'Please upload both a video and a thumbnail'));
   }
 
-  const { title, description, category, duration, tags } = req.body;
+  const { title, description, category, duration, tags, source = 'platform' } = req.body;
 
   if (!title || !description || !category) {
     return next(new ApiError(httpStatus.BAD_REQUEST, 'Please provide title, description, and category'));
   }
+
+  const validSource = source === 'watchparty' ? 'watchparty' : 'platform';
 
   // Upload thumbnail
   const thumbResult = await uploadToCloudinary(req.files.thumbnail[0].buffer, 'image');
@@ -80,6 +104,7 @@ exports.uploadVideo = asyncHandler(async (req, res, next) => {
     title,
     description,
     category,
+    source: validSource,
     duration: duration || videoResult.duration || 0,
     tags: tags ? tags.split(',').map(tag => tag.trim()) : [],
     thumbnail: thumbResult.secure_url,
@@ -205,4 +230,83 @@ exports.getPlatformVideos = asyncHandler(async (req, res, next) => {
     new ApiResponse(httpStatus.OK, { videos })
   );
 });
+
+// @desc    Toggle Like on video
+// @route   POST /api/v1/videos/:id/like
+// @access  Private
+exports.likeVideo = asyncHandler(async (req, res, next) => {
+  const video = await Video.findById(req.params.id);
+  if (!video) {
+    return next(new ApiError(httpStatus.NOT_FOUND, 'Video not found'));
+  }
+
+  const userId = req.user._id.toString();
+  const likedIndex = video.likedBy.findIndex(id => id.toString() === userId);
+  const dislikedIndex = video.dislikedBy.findIndex(id => id.toString() === userId);
+
+  if (likedIndex > -1) {
+    video.likedBy.splice(likedIndex, 1);
+  } else {
+    video.likedBy.push(req.user._id);
+    if (dislikedIndex > -1) {
+      video.dislikedBy.splice(dislikedIndex, 1);
+    }
+  }
+
+  video.likes = video.likedBy.length;
+  video.dislikes = video.dislikedBy.length;
+  await video.save();
+
+  const isLiked = video.likedBy.some(id => id.toString() === userId);
+  const isDisliked = video.dislikedBy.some(id => id.toString() === userId);
+
+  res.status(httpStatus.OK).json(
+    new ApiResponse(httpStatus.OK, {
+      likes: video.likes,
+      dislikes: video.dislikes,
+      isLiked,
+      isDisliked
+    }, 'Video reaction updated')
+  );
+});
+
+// @desc    Toggle Dislike on video
+// @route   POST /api/v1/videos/:id/dislike
+// @access  Private
+exports.dislikeVideo = asyncHandler(async (req, res, next) => {
+  const video = await Video.findById(req.params.id);
+  if (!video) {
+    return next(new ApiError(httpStatus.NOT_FOUND, 'Video not found'));
+  }
+
+  const userId = req.user._id.toString();
+  const likedIndex = video.likedBy.findIndex(id => id.toString() === userId);
+  const dislikedIndex = video.dislikedBy.findIndex(id => id.toString() === userId);
+
+  if (dislikedIndex > -1) {
+    video.dislikedBy.splice(dislikedIndex, 1);
+  } else {
+    video.dislikedBy.push(req.user._id);
+    if (likedIndex > -1) {
+      video.likedBy.splice(likedIndex, 1);
+    }
+  }
+
+  video.likes = video.likedBy.length;
+  video.dislikes = video.dislikedBy.length;
+  await video.save();
+
+  const isLiked = video.likedBy.some(id => id.toString() === userId);
+  const isDisliked = video.dislikedBy.some(id => id.toString() === userId);
+
+  res.status(httpStatus.OK).json(
+    new ApiResponse(httpStatus.OK, {
+      likes: video.likes,
+      dislikes: video.dislikes,
+      isLiked,
+      isDisliked
+    }, 'Video reaction updated')
+  );
+});
+
 
