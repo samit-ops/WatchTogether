@@ -10,6 +10,9 @@ const httpStatus = require('./constants/httpStatus');
 
 const app = express();
 
+// Trust proxy for Render / Cloudflare reverse proxies to fix ERR_ERL_UNEXPECTED_X_FORWARDED_FOR
+app.set('trust proxy', 1);
+
 // Security & Optimization Middleware: Helmet Security Headers
 app.use(helmet({
   crossOriginResourcePolicy: { policy: "cross-origin" },
