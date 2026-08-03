@@ -1,119 +1,73 @@
-const nodemailer = require('nodemailer');
-const dns = require('dns');
 const logger = require('../config/logger');
 
-// Force IPv4 resolution for cloud environments
-try {
-  if (dns.setDefaultResultOrder) {
-    dns.setDefaultResultOrder('ipv4first');
-  }
-} catch (e) {}
-
-// Helper to get Brevo API Key from any environment variable name
-const getBrevoApiKey = () => {
-  const candidates = [
-    process.env.BREVO_API_KEY,
-    process.env.SENDINBLUE_API_KEY,
-    process.env.BREVO_KEY,
-    process.env.SMTP_PASS,
-    process.env.EMAIL_PASS
-  ];
-  for (const key of candidates) {
-    if (key && (key.startsWith('xkeysib-') || key.startsWith('xsmtpsib-') || key.length > 20)) {
-      return key.trim();
-    }
-  }
-  return process.env.BREVO_API_KEY || process.env.SENDINBLUE_API_KEY || null;
-};
-
-// Brevo HTTPS REST API Dispatcher (Primary Email Delivery Engine)
+/**
+ * Single Email Transport: Brevo HTTPS REST API
+ * --------------------------------------------
+ * Uses POST https://api.brevo.com/v3/smtp/email on Port 443.
+ * Requires environment variables in Render:
+ * - BREVO_API_KEY (e.g. xkeysib-...)
+ * - BREVO_SENDER_EMAIL (your verified sender email address in Brevo Dashboard)
+ */
 const sendViaBrevoApi = async ({ toEmail, toName, subject, htmlContent, attachments = [] }) => {
-  const apiKey = getBrevoApiKey();
+  const apiKey = process.env.BREVO_API_KEY;
   if (!apiKey) {
-    console.warn('⚠️ [BREVO REST API] No Brevo API Key found in environment variables.');
+    console.error('❌ [BREVO REST API ERROR] BREVO_API_KEY is missing in Render environment variables!');
     return false;
   }
 
-  // Determine sender email. Brevo requires a verified sender email in your Brevo account.
-  const senderCandidates = [
-    process.env.BREVO_SENDER_EMAIL,
-    process.env.SMTP_USER,
-    process.env.EMAIL_USER,
-    'chamkilichaddi96@gmail.com'
-  ].filter(Boolean);
+  const senderEmail = process.env.BREVO_SENDER_EMAIL;
+  if (!senderEmail) {
+    console.error('❌ [BREVO REST API ERROR] BREVO_SENDER_EMAIL is missing in Render environment variables!');
+    return false;
+  }
+
+  const senderName = process.env.BREVO_SENDER_NAME || 'Watch Together Security';
 
   console.log('\n================ [BREVO REST API DISPATCH] ================');
   console.log('Target Recipient Email:', toEmail);
-  console.log('Brevo API Key detected:', `YES (${apiKey.substring(0, 10)}...)`);
+  console.log('Sender Email (Verified):', senderEmail);
+  console.log('Brevo API Key status:', `PRESENT (${apiKey.substring(0, 8)}...)`);
 
-  for (const senderEmail of senderCandidates) {
-    try {
-      console.log(`[Brevo API] Attempting to send from sender: ${senderEmail}...`);
+  try {
+    const payload = {
+      sender: { name: senderName, email: senderEmail },
+      to: [{ email: toEmail, name: toName || toEmail.split('@')[0] }],
+      subject: subject,
+      htmlContent: htmlContent
+    };
 
-      const payload = {
-        sender: { name: process.env.BREVO_SENDER_NAME || 'Watch Together Security', email: senderEmail },
-        to: [{ email: toEmail, name: toName || toEmail.split('@')[0] }],
-        subject: subject,
-        htmlContent: htmlContent
-      };
-
-      if (attachments && attachments.length > 0) {
-        payload.attachment = attachments.map(att => ({
-          name: att.filename,
-          content: Buffer.isBuffer(att.content) ? att.content.toString('base64') : Buffer.from(att.content).toString('base64')
-        }));
-      }
-
-      const response = await fetch('https://api.brevo.com/v3/smtp/email', {
-        method: 'POST',
-        headers: {
-          'accept': 'application/json',
-          'api-key': apiKey,
-          'content-type': 'application/json'
-        },
-        body: JSON.stringify(payload)
-      });
-
-      const resData = await response.json();
-      if (response.ok) {
-        console.log(`✅ [BREVO REST API SUCCESS] OTP Email delivered to ${toEmail}! MessageId: ${resData.messageId}`);
-        return true;
-      } else {
-        console.warn(`⚠️ [BREVO API REJECTED with sender ${senderEmail}]:`, resData.message || resData);
-      }
-    } catch (err) {
-      console.error(`❌ [BREVO API ERROR with sender ${senderEmail}]:`, err.message);
+    if (attachments && attachments.length > 0) {
+      payload.attachment = attachments.map(att => ({
+        name: att.filename,
+        content: Buffer.isBuffer(att.content) ? att.content.toString('base64') : Buffer.from(att.content).toString('base64')
+      }));
     }
-  }
 
-  return false;
-};
-
-// Brevo SMTP Transporter (Fallback via smtp-relay.brevo.com:587)
-const createBrevoSmtpTransporter = async () => {
-  const user = process.env.SMTP_USER || process.env.EMAIL_USER || process.env.BREVO_SENDER_EMAIL;
-  const pass = getBrevoApiKey() || process.env.SMTP_PASS || process.env.EMAIL_PASS;
-  const host = process.env.SMTP_HOST || 'smtp-relay.brevo.com';
-  const port = Number(process.env.SMTP_PORT) || 587;
-
-  if (user && pass) {
-    const cleanPass = pass.replace(/\s+/g, '');
-    console.log(`[Brevo SMTP Transporter] Initializing ${host}:${port} for ${user}...`);
-
-    return nodemailer.createTransport({
-      host,
-      port,
-      secure: false, // Port 587 uses STARTTLS
-      requireTLS: true,
-      auth: { user, pass: cleanPass },
-      family: 4,
-      tls: { rejectUnauthorized: false },
-      connectionTimeout: 10000,
-      socketTimeout: 10000
+    const response = await fetch('https://api.brevo.com/v3/smtp/email', {
+      method: 'POST',
+      headers: {
+        'accept': 'application/json',
+        'api-key': apiKey,
+        'content-type': 'application/json'
+      },
+      body: JSON.stringify(payload)
     });
-  }
 
-  return null;
+    const resData = await response.json();
+
+    if (response.ok) {
+      console.log(`✅ [BREVO REST API SUCCESS] Email delivered to ${toEmail}! MessageId: ${resData.messageId}`);
+      return true;
+    } else {
+      console.error(`❌ [BREVO API REJECTED] Code: ${response.status}`, resData);
+      logger.error(`[Brevo API Error] Rejected: ${JSON.stringify(resData)}`);
+      return false;
+    }
+  } catch (err) {
+    console.error(`❌ [BREVO API NETWORK ERROR]:`, err.message);
+    logger.error(`[Brevo API Error] Network failure: ${err.message}`);
+    return false;
+  }
 };
 
 const sendSubscriptionConfirmation = async ({ user, plan, amount, razorpayPaymentId, razorpayOrderId, transactionDate, features = [] }) => {
@@ -235,31 +189,13 @@ const sendSubscriptionConfirmation = async ({ user, plan, amount, razorpayPaymen
       });
     }
 
-    // Try Brevo REST API first
-    const apiSuccess = await sendViaBrevoApi({
+    return await sendViaBrevoApi({
       toEmail: user.email,
       toName: user.name,
       subject: `🎉 Congratulations! You are now a ${plan} Member - Watch Together Invoice`,
       htmlContent,
       attachments
     });
-    if (apiSuccess) return true;
-
-    // Fallback to Brevo SMTP Transporter
-    const transporter = await createBrevoSmtpTransporter();
-    if (transporter) {
-      const fromUser = process.env.BREVO_SENDER_EMAIL || process.env.SMTP_USER || process.env.EMAIL_USER || 'chamkilichaddi96@gmail.com';
-      await transporter.sendMail({
-        from: `"Watch Together" <${fromUser}>`,
-        to: user.email,
-        subject: `🎉 Congratulations! You are now a ${plan} Member - Watch Together Invoice`,
-        html: htmlContent,
-        attachments: attachments.map(a => ({ filename: a.filename, content: a.content, contentType: 'application/pdf' }))
-      });
-      logger.info(`[Email] Subscription invoice sent to ${user.email}`);
-    }
-
-    return true;
   } catch (error) {
     logger.error(`[Email Error] Failed to send subscription confirmation: ${error.message}`);
     return false;
@@ -320,31 +256,12 @@ const sendOtpEmail = async ({ user, otpCode, purpose = 'LOGIN_NEW_DEVICE' }) => 
 
     const subject = `🔐 [Watch Together] ${otpCode} is your ${isReset ? 'Password Reset' : 'Security'} Code`;
 
-    // 1. Try Brevo HTTPS REST API (Primary Engine)
-    const apiSuccess = await sendViaBrevoApi({
+    return await sendViaBrevoApi({
       toEmail: user.email,
       toName: user.name,
       subject,
       htmlContent
     });
-    if (apiSuccess) return true;
-
-    // 2. Try Fallback Brevo SMTP Transporter
-    const transporter = await createBrevoSmtpTransporter();
-    if (transporter) {
-      const fromUser = process.env.BREVO_SENDER_EMAIL || process.env.SMTP_USER || process.env.EMAIL_USER || 'chamkilichaddi96@gmail.com';
-      await transporter.sendMail({
-        from: `"Watch Together Security" <${fromUser}>`,
-        to: user.email,
-        subject,
-        html: htmlContent
-      });
-      console.log(`✅ [BREVO SMTP SUCCESS] OTP email dispatched to ${user.email}!`);
-      return true;
-    }
-
-    console.warn(`⚠️ [BREVO UNCONFIGURED] Active OTP for ${user.email} is: ${otpCode}`);
-    return true;
   } catch (error) {
     console.error(`❌ [EMAIL DISPATCH ERROR] Failed to send OTP email:`, error);
     logger.error(`[Email Error] Failed to send OTP email: ${error.message}`);
