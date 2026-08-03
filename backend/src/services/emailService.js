@@ -2,30 +2,73 @@ const nodemailer = require('nodemailer');
 const dns = require('dns');
 const logger = require('../config/logger');
 
-// Force IPv4 resolution to prevent ENETUNREACH on Render IPv6 interfaces
+// Force IPv4 resolution on cloud environments
 try {
   if (dns.setDefaultResultOrder) {
     dns.setDefaultResultOrder('ipv4first');
   }
 } catch (e) {}
 
-// Create reusable transporter with Port 587 STARTTLS & verification
+// Brevo HTTPS REST API Dispatcher (Zero port block risk, instant response)
+const sendViaBrevoApi = async ({ toEmail, toName, subject, htmlContent, attachments = [] }) => {
+  const apiKey = process.env.BREVO_API_KEY || process.env.SENDINBLUE_API_KEY;
+  if (!apiKey) return false;
+
+  const senderEmail = process.env.BREVO_SENDER_EMAIL || process.env.SMTP_USER || process.env.EMAIL_USER || 'no-reply@watchtogether.com';
+  const senderName = process.env.BREVO_SENDER_NAME || 'Watch Together Security';
+
+  console.log('\n================ [BREVO REST API DISPATCH] ================');
+  console.log('Target Email:', toEmail);
+  console.log('Sender Email:', senderEmail);
+
+  try {
+    const payload = {
+      sender: { name: senderName, email: senderEmail },
+      to: [{ email: toEmail, name: toName || toEmail.split('@')[0] }],
+      subject: subject,
+      htmlContent: htmlContent
+    };
+
+    if (attachments && attachments.length > 0) {
+      payload.attachment = attachments.map(att => ({
+        name: att.filename,
+        content: Buffer.isBuffer(att.content) ? att.content.toString('base64') : Buffer.from(att.content).toString('base64')
+      }));
+    }
+
+    const response = await fetch('https://api.brevo.com/v3/smtp/email', {
+      method: 'POST',
+      headers: {
+        'accept': 'application/json',
+        'api-key': apiKey,
+        'content-type': 'application/json'
+      },
+      body: JSON.stringify(payload)
+    });
+
+    const resData = await response.json();
+    if (response.ok) {
+      console.log(`✅ [BREVO API SUCCESS] Email delivered to ${toEmail}! MessageId: ${resData.messageId}`);
+      return true;
+    } else {
+      console.error(`❌ [BREVO API REJECTED] Code: ${response.status}`, resData);
+      return false;
+    }
+  } catch (err) {
+    console.error(`❌ [BREVO API ERROR]`, err);
+    return false;
+  }
+};
+
+// Fallback SMTP Transporter (Supports Brevo SMTP smtp-relay.brevo.com & general SMTP)
 const createTransporter = async () => {
   const user = process.env.SMTP_USER || process.env.EMAIL_USER;
   const pass = process.env.SMTP_PASS || process.env.EMAIL_PASS || process.env.EMAIL_PASSWORD;
-  const host = process.env.SMTP_HOST || 'smtp.gmail.com';
+  const host = process.env.SMTP_HOST || 'smtp-relay.brevo.com';
   const port = Number(process.env.SMTP_PORT) || 587;
-  const secure = process.env.SMTP_SECURE === 'true'; // false for port 587
-
-  console.log('\n================ [SMTP TRANSPORTER INIT] ================');
-  console.log('SMTP Host:', host);
-  console.log('SMTP Port:', port);
-  console.log('SMTP Secure (SSL):', secure);
-  console.log('SMTP User configured:', user ? `YES (${user})` : 'NO');
-  console.log('SMTP Pass configured:', pass ? `YES (${pass.length} chars)` : 'NO');
+  const secure = process.env.SMTP_SECURE === 'true';
 
   if (user && pass) {
-    // Sanitize Google App Passwords (remove spaces if formatted as "xxxx xxxx xxxx xxxx")
     const cleanPass = pass.replace(/\s+/g, '');
 
     const transportOptions = {
@@ -34,42 +77,20 @@ const createTransporter = async () => {
       secure: secure || port === 465,
       requireTLS: !secure && port !== 465,
       auth: { user, pass: cleanPass },
-      family: 4, // Force IPv4 socket connection
-      tls: {
-        rejectUnauthorized: false,
-        ciphers: 'SSLv3'
-      },
+      family: 4,
+      tls: { rejectUnauthorized: false },
       connectionTimeout: 8000,
-      greetingTimeout: 8000,
       socketTimeout: 8000
     };
 
-    if (host.includes('gmail') && !secure && port === 587) {
-      transportOptions.service = 'gmail';
-    }
-
-    const transporter = nodemailer.createTransport(transportOptions);
-
-    // Verify SMTP Transporter Connection
-    try {
-      console.log(`[SMTP Transporter] Verifying connection to ${host}:${port}...`);
-      await transporter.verify();
-      console.log(`✅ [SMTP Transporter VERIFIED] Connected successfully to ${host}:${port}!`);
-      return transporter;
-    } catch (verifyError) {
-      console.error(`❌ [SMTP Transporter VERIFICATION FAILED] ${verifyError.message}`);
-      console.error('Stack trace:', verifyError.stack);
-      return transporter; // Return transporter anyway so sendMail attempts with fallback
-    }
+    return nodemailer.createTransport(transportOptions);
   }
 
-  console.warn('⚠️ [SMTP WARNING] No SMTP credentials found in Render environment variables!');
   return null;
 };
 
 const sendSubscriptionConfirmation = async ({ user, plan, amount, razorpayPaymentId, razorpayOrderId, transactionDate, features = [] }) => {
   try {
-    const transporter = await createTransporter();
     const formattedDate = new Date(transactionDate || Date.now()).toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'long',
@@ -178,30 +199,39 @@ const sendSubscriptionConfirmation = async ({ user, plan, amount, razorpayPaymen
       logger.error('PDF Generation error:', pdfErr);
     }
 
+    const attachments = [];
+    if (pdfAttachment) {
+      const sanitizedName = (user.name || 'User').replace(/[^a-zA-Z0-9]/g, '_');
+      attachments.push({
+        filename: `Invoice_${plan}_${sanitizedName}.pdf`,
+        content: pdfAttachment
+      });
+    }
+
+    // Try Brevo REST API first
+    if (process.env.BREVO_API_KEY || process.env.SENDINBLUE_API_KEY) {
+      const apiSuccess = await sendViaBrevoApi({
+        toEmail: user.email,
+        toName: user.name,
+        subject: `🎉 Congratulations! You are now a ${plan} Member - Watch Together Invoice`,
+        htmlContent,
+        attachments
+      });
+      if (apiSuccess) return true;
+    }
+
+    // Fallback to Transporter / SMTP
+    const transporter = await createTransporter();
     if (transporter) {
-      const fromUser = process.env.SMTP_USER || process.env.EMAIL_USER || 'no-reply@watchtogether.com';
-      const mailOptions = {
+      const fromUser = process.env.BREVO_SENDER_EMAIL || process.env.SMTP_USER || process.env.EMAIL_USER || 'no-reply@watchtogether.com';
+      await transporter.sendMail({
         from: `"Watch Together" <${fromUser}>`,
         to: user.email,
         subject: `🎉 Congratulations! You are now a ${plan} Member - Watch Together Invoice`,
-        html: htmlContent
-      };
-
-      if (pdfAttachment) {
-        const sanitizedName = (user.name || 'User').replace(/[^a-zA-Z0-9]/g, '_');
-        mailOptions.attachments = [
-          {
-            filename: `Invoice_${plan}_${sanitizedName}.pdf`,
-            content: pdfAttachment,
-            contentType: 'application/pdf'
-          }
-        ];
-      }
-
-      await transporter.sendMail(mailOptions);
+        html: htmlContent,
+        attachments: attachments.map(a => ({ filename: a.filename, content: a.content, contentType: 'application/pdf' }))
+      });
       logger.info(`[Email] Subscription invoice sent to ${user.email}`);
-    } else {
-      logger.info(`[Email Simulation] Invoice prepared for ${user.email} (${plan} plan)`);
     }
 
     return true;
@@ -225,18 +255,6 @@ const sendInvoiceEmail = async ({ user, paymentRecord }) => {
 
 const sendOtpEmail = async ({ user, otpCode, purpose = 'LOGIN_NEW_DEVICE' }) => {
   try {
-    const smtpUser = process.env.SMTP_USER || process.env.EMAIL_USER;
-    console.log('\n================ [DISPATCHING OTP EMAIL] ================');
-    console.log('Recipient Target Email:', user.email);
-    console.log('OTP Code Generated:', otpCode);
-    console.log('Authenticated Sender Email:', smtpUser || 'UNCONFIGURED');
-
-    const transporter = await createTransporter();
-    if (!transporter) {
-      console.warn(`⚠️ [SMTP NOT CONFIGURED ON RENDER] Active OTP for ${user.email} is: ${otpCode}`);
-      return true;
-    }
-
     const isReset = purpose === 'FORGOT_PASSWORD';
     const isSignup = purpose === 'SIGNUP_VERIFICATION';
     const title = isSignup ? '🎉 Welcome! Verify Your Account' : isReset ? 'Password Reset Verification Code' : 'New Device Security Verification';
@@ -275,21 +293,37 @@ const sendOtpEmail = async ({ user, otpCode, purpose = 'LOGIN_NEW_DEVICE' }) => 
       </div>
     `;
 
-    const fromAddress = `"Watch Together Security" <${smtpUser}>`;
+    const subject = `🔐 [Watch Together] ${otpCode} is your ${isReset ? 'Password Reset' : 'Security'} Code`;
 
-    const mailOptions = {
-      from: fromAddress,
-      to: user.email,
-      subject: `🔐 [Watch Together] ${otpCode} is your ${isReset ? 'Password Reset' : 'Security'} Code`,
-      html: htmlContent
-    };
+    // 1. Try Brevo HTTPS REST API (Preferred)
+    if (process.env.BREVO_API_KEY || process.env.SENDINBLUE_API_KEY) {
+      const apiSuccess = await sendViaBrevoApi({
+        toEmail: user.email,
+        toName: user.name,
+        subject,
+        htmlContent
+      });
+      if (apiSuccess) return true;
+    }
 
-    console.log(`[SMTP] Attempting transporter.sendMail() to ${user.email}...`);
-    const info = await transporter.sendMail(mailOptions);
-    console.log(`✅ [SMTP SUCCESS] OTP email dispatched! MessageId: ${info.messageId} | Response: ${info.response}`);
+    // 2. Try Fallback Transporter (Brevo SMTP or custom SMTP)
+    const transporter = await createTransporter();
+    if (transporter) {
+      const fromUser = process.env.BREVO_SENDER_EMAIL || process.env.SMTP_USER || process.env.EMAIL_USER || 'no-reply@watchtogether.com';
+      await transporter.sendMail({
+        from: `"Watch Together Security" <${fromUser}>`,
+        to: user.email,
+        subject,
+        html: htmlContent
+      });
+      console.log(`✅ [SMTP SUCCESS] OTP email dispatched to ${user.email}!`);
+      return true;
+    }
+
+    console.warn(`⚠️ [BREVO / SMTP UNCONFIGURED] Active OTP for ${user.email} is: ${otpCode}`);
     return true;
   } catch (error) {
-    console.error(`❌ [SMTP DISPATCH ERROR] Failed to send OTP email:`, error);
+    console.error(`❌ [EMAIL DISPATCH ERROR] Failed to send OTP email:`, error);
     logger.error(`[Email Error] Failed to send OTP email: ${error.message}`);
     return false;
   }
