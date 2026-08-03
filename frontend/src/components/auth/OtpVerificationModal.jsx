@@ -146,6 +146,7 @@ export function OtpVerificationModal({ email, phoneNumber, purpose = 'LOGIN_NEW_
           </span>
           <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-primary/10 text-primary">
             {activeChannel === 'sms' ? 'SMS Active' : 'Email Active'}
+          </span>
         </div>
 
         {otpPreview && (
