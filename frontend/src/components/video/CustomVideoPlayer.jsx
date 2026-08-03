@@ -406,12 +406,13 @@ export function CustomVideoPlayer({
         onTimeUpdate={handleTimeUpdate}
         onLoadedMetadata={handleLoadedMetadata}
         onWaiting={() => setIsBuffering(true)}
-        onPlaying={() => setIsBuffering(false)}
+        onPlaying={() => { setIsBuffering(false); setIsPlaying(true); }}
+        onPlay={() => setIsPlaying(true)}
+        onPause={() => setIsPlaying(false)}
         onCanPlay={() => setIsBuffering(false)}
         onSeeking={() => setIsBuffering(true)}
         onSeeked={() => setIsBuffering(false)}
         onEnded={handleVideoEnded}
-        onClick={(e) => { e.stopPropagation(); }}
         playsInline
       />
 

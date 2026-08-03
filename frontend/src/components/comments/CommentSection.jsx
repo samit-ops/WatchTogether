@@ -268,10 +268,51 @@ export function CommentSection({ videoId, videoUploaderId, videoSource = 'platfo
       return;
     }
 
+    const tempId = `temp-reply-${Date.now()}`;
+    const tempReply = {
+      id: tempId,
+      _id: tempId,
+      video: videoId,
+      user: {
+        id: user.id || user._id,
+        _id: user.id || user._id,
+        name: user.name,
+        avatar: user.avatar || ''
+      },
+      text,
+      parentComment: parentCommentId,
+      likesCount: 0,
+      dislikesCount: 0,
+      isLiked: false,
+      isDisliked: false,
+      showLocation,
+      location: showLocation ? (user.city || '') : '',
+      isEdited: false,
+      createdAt: new Date().toISOString(),
+      replies: []
+    };
+
+    // 1. Optimistic local state update (reply renders instantly)
+    setComments(prev => upsertCommentInTree(prev, tempReply));
+    setTotalComments(prev => prev + 1);
+
     try {
+      // 2. Call backend API
       const res = await commentService.createComment(videoId, text, parentCommentId, showLocation);
+      const realReply = res.data?.comment || res.comment || res.data;
+
+      // 3. Replace temp reply with server reply
+      if (realReply) {
+        setComments(prev => upsertCommentInTree(prev, realReply, tempId));
+      }
       toast.success('Reply posted!');
     } catch (err) {
+      // Rollback optimistic reply on failure
+      setComments(prev => {
+        const removeTemp = (items) => items.filter(i => (i.id || i._id).toString() !== tempId).map(i => i.replies ? { ...i, replies: removeTemp(i.replies) } : i);
+        return removeTemp(prev);
+      });
+      setTotalComments(prev => Math.max(0, prev - 1));
       const msg = err.response?.data?.message || err.message || 'Failed to post reply.';
       toast.error(msg);
     }
