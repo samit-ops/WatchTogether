@@ -90,8 +90,16 @@ export function useRoom(socket, roomId) {
       });
     }
 
+    const handleBeforeUnload = () => {
+      if (socket && roomId) {
+        socket.emit('leave-room', { roomId });
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
     return () => {
       mounted = false;
+      window.removeEventListener('beforeunload', handleBeforeUnload);
       if (socket && roomId) {
         socket.off('participants-updated');
         socket.off('room-ended');
