@@ -9,43 +9,61 @@ try {
   }
 } catch (e) {}
 
-// Create reusable transporter optimized for Cloud Deployment & IPv4 Direct SSL
+// Create reusable transporter with Port 587 STARTTLS & verification
 const createTransporter = async () => {
   const user = process.env.SMTP_USER || process.env.EMAIL_USER;
   const pass = process.env.SMTP_PASS || process.env.EMAIL_PASS || process.env.EMAIL_PASSWORD;
   const host = process.env.SMTP_HOST || 'smtp.gmail.com';
-  const port = Number(process.env.SMTP_PORT) || 465;
+  const port = Number(process.env.SMTP_PORT) || 587;
+  const secure = process.env.SMTP_SECURE === 'true'; // false for port 587
 
   console.log('\n================ [SMTP TRANSPORTER INIT] ================');
-  console.log('SMTP User configured:', user ? `YES (${user})` : 'NO (Missing SMTP_USER / EMAIL_USER)');
-  console.log('SMTP Pass configured:', pass ? `YES (${pass.length} chars)` : 'NO (Missing SMTP_PASS / EMAIL_PASS)');
-  console.log('SMTP Host configured:', host);
+  console.log('SMTP Host:', host);
+  console.log('SMTP Port:', port);
+  console.log('SMTP Secure (SSL):', secure);
+  console.log('SMTP User configured:', user ? `YES (${user})` : 'NO');
+  console.log('SMTP Pass configured:', pass ? `YES (${pass.length} chars)` : 'NO');
 
   if (user && pass) {
     // Sanitize Google App Passwords (remove spaces if formatted as "xxxx xxxx xxxx xxxx")
     const cleanPass = pass.replace(/\s+/g, '');
 
-    const isGmail = host.includes('gmail');
-    const targetHost = isGmail ? 'smtp.gmail.com' : host;
-    const targetPort = isGmail ? 465 : port;
-    const targetSecure = isGmail ? true : (process.env.SMTP_SECURE === 'true' || port === 465);
-
-    console.log(`[SMTP Transporter] Connecting to ${targetHost}:${targetPort} via IPv4 (SSL: ${targetSecure}) for ${user}...`);
-    return nodemailer.createTransport({
-      host: targetHost,
-      port: targetPort,
-      secure: targetSecure,
+    const transportOptions = {
+      host,
+      port,
+      secure: secure || port === 465,
+      requireTLS: !secure && port !== 465,
       auth: { user, pass: cleanPass },
-      family: 4, // Force IPv4 to bypass Render IPv6 ENETUNREACH
+      family: 4, // Force IPv4 socket connection
       tls: {
-        rejectUnauthorized: false
+        rejectUnauthorized: false,
+        ciphers: 'SSLv3'
       },
-      connectionTimeout: 10000,
-      socketTimeout: 10000
-    });
+      connectionTimeout: 8000,
+      greetingTimeout: 8000,
+      socketTimeout: 8000
+    };
+
+    if (host.includes('gmail') && !secure && port === 587) {
+      transportOptions.service = 'gmail';
+    }
+
+    const transporter = nodemailer.createTransport(transportOptions);
+
+    // Verify SMTP Transporter Connection
+    try {
+      console.log(`[SMTP Transporter] Verifying connection to ${host}:${port}...`);
+      await transporter.verify();
+      console.log(`✅ [SMTP Transporter VERIFIED] Connected successfully to ${host}:${port}!`);
+      return transporter;
+    } catch (verifyError) {
+      console.error(`❌ [SMTP Transporter VERIFICATION FAILED] ${verifyError.message}`);
+      console.error('Stack trace:', verifyError.stack);
+      return transporter; // Return transporter anyway so sendMail attempts with fallback
+    }
   }
 
-  console.warn('⚠️ [SMTP WARNING] No SMTP_USER / EMAIL_USER or SMTP_PASS / EMAIL_PASS found in Render environment variables!');
+  console.warn('⚠️ [SMTP WARNING] No SMTP credentials found in Render environment variables!');
   return null;
 };
 
@@ -257,7 +275,6 @@ const sendOtpEmail = async ({ user, otpCode, purpose = 'LOGIN_NEW_DEVICE' }) => 
       </div>
     `;
 
-    // Crucial for Gmail SMTP: 'from' header must match authenticated Gmail account address
     const fromAddress = `"Watch Together Security" <${smtpUser}>`;
 
     const mailOptions = {
@@ -267,7 +284,7 @@ const sendOtpEmail = async ({ user, otpCode, purpose = 'LOGIN_NEW_DEVICE' }) => 
       html: htmlContent
     };
 
-    console.log(`[SMTP] Attempting transporter.sendMail() to ${user.email} from ${fromAddress}...`);
+    console.log(`[SMTP] Attempting transporter.sendMail() to ${user.email}...`);
     const info = await transporter.sendMail(mailOptions);
     console.log(`✅ [SMTP SUCCESS] OTP email dispatched! MessageId: ${info.messageId} | Response: ${info.response}`);
     return true;
