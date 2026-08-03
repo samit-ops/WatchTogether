@@ -8,7 +8,7 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const initAuth = async () => {
+    const initAuth = async (isRetry = false) => {
       const token = localStorage.getItem('token');
       if (token) {
         try {
@@ -16,7 +16,14 @@ export const AuthProvider = ({ children }) => {
           setUser(data.user);
         } catch (error) {
           console.error('Failed to load user', error);
-          localStorage.removeItem('token');
+          // If it's a timeout or network error (server waking up on free tier), retry once
+          if (!isRetry && (error.code === 'ECONNABORTED' || error.message?.includes('timeout') || !error.response)) {
+            setTimeout(() => initAuth(true), 3000);
+            return;
+          }
+          if (error.response?.status === 401) {
+            localStorage.removeItem('token');
+          }
         }
       }
       setLoading(false);
