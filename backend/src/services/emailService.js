@@ -1,34 +1,42 @@
 const nodemailer = require('nodemailer');
 const logger = require('../config/logger');
 
-// Create reusable transporter with support for SMTP_USER/PASS or EMAIL_USER/PASS
+// Create reusable transporter with strict logging & Google App Password auto-sanitization
 const createTransporter = async () => {
   const user = process.env.SMTP_USER || process.env.EMAIL_USER;
-  const pass = process.env.SMTP_PASS || process.env.EMAIL_PASS;
+  const pass = process.env.SMTP_PASS || process.env.EMAIL_PASS || process.env.EMAIL_PASSWORD;
   const host = process.env.SMTP_HOST;
 
+  console.log('\n================ [SMTP TRANSPORTER INIT] ================');
+  console.log('SMTP User configured:', user ? `YES (${user})` : 'NO (Missing SMTP_USER / EMAIL_USER)');
+  console.log('SMTP Pass configured:', pass ? `YES (${pass.length} chars)` : 'NO (Missing SMTP_PASS / EMAIL_PASS)');
+  console.log('SMTP Host configured:', host || 'Using Gmail Service');
+
   if (user && pass) {
-    if (host) {
+    // Sanitize Google App Passwords (remove spaces if formatted as "xxxx xxxx xxxx xxxx")
+    const cleanPass = pass.replace(/\s+/g, '');
+
+    if (host && !host.includes('gmail')) {
       const port = Number(process.env.SMTP_PORT) || 587;
+      console.log(`[SMTP Transporter] Initializing custom host ${host}:${port}...`);
       return nodemailer.createTransport({
         host,
         port,
         secure: process.env.SMTP_SECURE === 'true' || port === 465,
-        auth: { user, pass },
-        connectionTimeout: 5000,
-        greetingTimeout: 5000,
-        socketTimeout: 5000
+        auth: { user, pass: cleanPass },
+        connectionTimeout: 10000,
+        socketTimeout: 10000
       });
     }
 
-    // Default to Gmail service if user/pass provided without custom host
+    console.log(`[SMTP Transporter] Initializing Gmail Service for user: ${user}...`);
     return nodemailer.createTransport({
       service: 'gmail',
-      auth: { user, pass }
+      auth: { user, pass: cleanPass }
     });
   }
 
-  // If no SMTP credentials configured, return null immediately
+  console.warn('⚠️ [SMTP WARNING] No SMTP_USER / EMAIL_USER or SMTP_PASS / EMAIL_PASS found in Render environment variables!');
   return null;
 };
 
@@ -146,7 +154,7 @@ const sendSubscriptionConfirmation = async ({ user, plan, amount, razorpayPaymen
     if (transporter) {
       const fromUser = process.env.SMTP_USER || process.env.EMAIL_USER || 'no-reply@watchtogether.com';
       const mailOptions = {
-        from: process.env.SMTP_FROM || `"Watch Together" <${fromUser}>`,
+        from: `"Watch Together" <${fromUser}>`,
         to: user.email,
         subject: `🎉 Congratulations! You are now a ${plan} Member - Watch Together Invoice`,
         html: htmlContent
@@ -190,11 +198,15 @@ const sendInvoiceEmail = async ({ user, paymentRecord }) => {
 
 const sendOtpEmail = async ({ user, otpCode, purpose = 'LOGIN_NEW_DEVICE' }) => {
   try {
-    logger.info(`[OTP LOGGED FOR PRODUCTION TESTING] User: ${user.email} | OTP: ${otpCode}`);
+    const smtpUser = process.env.SMTP_USER || process.env.EMAIL_USER;
+    console.log('\n================ [DISPATCHING OTP EMAIL] ================');
+    console.log('Recipient Target Email:', user.email);
+    console.log('OTP Code Generated:', otpCode);
+    console.log('Authenticated Sender Email:', smtpUser || 'UNCONFIGURED');
 
     const transporter = await createTransporter();
     if (!transporter) {
-      logger.info(`[SMTP Not Configured] Active OTP for ${user.email} is: ${otpCode}`);
+      console.warn(`⚠️ [SMTP NOT CONFIGURED ON RENDER] Active OTP for ${user.email} is: ${otpCode}`);
       return true;
     }
 
@@ -236,18 +248,22 @@ const sendOtpEmail = async ({ user, otpCode, purpose = 'LOGIN_NEW_DEVICE' }) => 
       </div>
     `;
 
-    const fromUser = process.env.SMTP_USER || process.env.EMAIL_USER || 'no-reply@watchtogether.com';
+    // Crucial for Gmail SMTP: 'from' header must match authenticated Gmail account address
+    const fromAddress = `"Watch Together Security" <${smtpUser}>`;
+
     const mailOptions = {
-      from: process.env.SMTP_FROM || `"Watch Together Security" <${fromUser}>`,
+      from: fromAddress,
       to: user.email,
       subject: `🔐 [Watch Together] ${otpCode} is your ${isReset ? 'Password Reset' : 'Security'} Code`,
       html: htmlContent
     };
 
+    console.log(`[SMTP] Attempting transporter.sendMail() to ${user.email} from ${fromAddress}...`);
     const info = await transporter.sendMail(mailOptions);
-    logger.info(`[OTP Email Dispatched] ID: ${info.messageId} to ${user.email} (OTP: ${otpCode})`);
+    console.log(`✅ [SMTP SUCCESS] OTP email dispatched! MessageId: ${info.messageId} | Response: ${info.response}`);
     return true;
   } catch (error) {
+    console.error(`❌ [SMTP DISPATCH ERROR] Failed to send OTP email:`, error);
     logger.error(`[Email Error] Failed to send OTP email: ${error.message}`);
     return false;
   }
