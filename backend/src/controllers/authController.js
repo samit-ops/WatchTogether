@@ -35,58 +35,50 @@ exports.register = asyncHandler(async (req, res, next) => {
 
   // Check for existing user
   let user = await User.findOne({ email });
-  if (user && user.isVerified) {
-    return next(new ApiError(httpStatus.BAD_REQUEST, 'User with this email already exists'));
+  if (user) {
+    if (user.isVerified) {
+      return next(new ApiError(httpStatus.BAD_REQUEST, 'An account with this email address already exists. Please Sign In.'));
+    }
+    // Remove stale unverified account to re-create cleanly
+    await User.deleteOne({ _id: user._id });
   }
 
   const clientDevice = getClientDeviceInfo(req);
   const otpCode = generateOtpCode();
   const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
 
-  if (user && !user.isVerified) {
-    // Re-registration / update unverified user details
-    user.name = name;
-    user.password = password;
-    user.phoneNumber = phoneNumber || '';
-    user.city = city.trim();
-    user.pincode = pincode.trim();
-    user.knownDevices = [clientDevice];
-    user.otp = {
+  // Create new unverified user
+  user = await User.create({
+    name,
+    email,
+    password,
+    phoneNumber: phoneNumber || '',
+    city: city.trim(),
+    pincode: pincode.trim(),
+    knownDevices: [clientDevice],
+    isVerified: false,
+    otp: {
       code: otpCode,
       expiresAt,
       purpose: 'SIGNUP_VERIFICATION'
-    };
-    await user.save();
-  } else {
-    // Create new unverified user
-    user = await User.create({
-      name,
-      email,
-      password,
-      phoneNumber: phoneNumber || '',
-      city: city.trim(),
-      pincode: pincode.trim(),
-      knownDevices: [clientDevice],
-      isVerified: false,
-      otp: {
-        code: otpCode,
-        expiresAt,
-        purpose: 'SIGNUP_VERIFICATION'
-      }
-    });
-  }
-
-  // Dispatch OTP according to user selected channel (email, sms, or both)
-  if (otpChannel === 'sms') {
-    await sendSmsOtp({ phoneNumber: user.phoneNumber, otpCode, purpose: 'SIGNUP_VERIFICATION' });
-  } else if (otpChannel === 'both') {
-    await sendOtpEmail({ user, otpCode, purpose: 'SIGNUP_VERIFICATION' });
-    if (user.phoneNumber) {
-      await sendSmsOtp({ phoneNumber: user.phoneNumber, otpCode, purpose: 'SIGNUP_VERIFICATION' });
     }
-  } else {
-    // Default: Email
-    await sendOtpEmail({ user, otpCode, purpose: 'SIGNUP_VERIFICATION' });
+  });
+
+  // Dispatch OTP safely
+  try {
+    if (otpChannel === 'sms') {
+      await sendSmsOtp({ phoneNumber: user.phoneNumber, otpCode, purpose: 'SIGNUP_VERIFICATION' });
+    } else if (otpChannel === 'both') {
+      await sendOtpEmail({ user, otpCode, purpose: 'SIGNUP_VERIFICATION' }).catch(() => {});
+      if (user.phoneNumber) {
+        await sendSmsOtp({ phoneNumber: user.phoneNumber, otpCode, purpose: 'SIGNUP_VERIFICATION' });
+      }
+    } else {
+      // Default: Email
+      await sendOtpEmail({ user, otpCode, purpose: 'SIGNUP_VERIFICATION' }).catch(() => {});
+    }
+  } catch (mailErr) {
+    console.error('OTP dispatch error:', mailErr);
   }
 
   res.status(httpStatus.CREATED).json(

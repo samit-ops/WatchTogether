@@ -7,14 +7,10 @@ const notFound = (req, res, next) => {
 };
 
 const errorHandler = (err, req, res, next) => {
-  let { statusCode, message } = err;
-  
-  if (!err.isOperational) {
-    statusCode = httpStatus.INTERNAL_SERVER_ERROR;
-    message = 'Internal Server Error';
-  }
+  const statusCode = err.statusCode || (res.statusCode === 200 ? 500 : res.statusCode) || 500;
+  const message = err.message || 'Internal Server Error';
 
-  res.locals.errorMessage = err.message;
+  res.locals.errorMessage = message;
 
   const response = {
     success: false,
@@ -23,7 +19,7 @@ const errorHandler = (err, req, res, next) => {
     timestamp: new Date().toISOString(),
   };
 
-  res.status(statusCode || 500).json(response);
+  res.status(statusCode).json(response);
 };
 
 module.exports = {
