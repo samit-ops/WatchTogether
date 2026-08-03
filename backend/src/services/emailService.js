@@ -1,38 +1,38 @@
 const nodemailer = require('nodemailer');
 const logger = require('../config/logger');
 
-// Create reusable transporter with strict logging & Google App Password auto-sanitization
+// Create reusable transporter optimized for Cloud Deployment & Gmail SSL
 const createTransporter = async () => {
   const user = process.env.SMTP_USER || process.env.EMAIL_USER;
   const pass = process.env.SMTP_PASS || process.env.EMAIL_PASS || process.env.EMAIL_PASSWORD;
-  const host = process.env.SMTP_HOST;
+  const host = process.env.SMTP_HOST || 'smtp.gmail.com';
+  const port = Number(process.env.SMTP_PORT) || 465;
 
   console.log('\n================ [SMTP TRANSPORTER INIT] ================');
   console.log('SMTP User configured:', user ? `YES (${user})` : 'NO (Missing SMTP_USER / EMAIL_USER)');
   console.log('SMTP Pass configured:', pass ? `YES (${pass.length} chars)` : 'NO (Missing SMTP_PASS / EMAIL_PASS)');
-  console.log('SMTP Host configured:', host || 'Using Gmail Service');
+  console.log('SMTP Host configured:', host);
 
   if (user && pass) {
     // Sanitize Google App Passwords (remove spaces if formatted as "xxxx xxxx xxxx xxxx")
     const cleanPass = pass.replace(/\s+/g, '');
 
-    if (host && !host.includes('gmail')) {
-      const port = Number(process.env.SMTP_PORT) || 587;
-      console.log(`[SMTP Transporter] Initializing custom host ${host}:${port}...`);
-      return nodemailer.createTransport({
-        host,
-        port,
-        secure: process.env.SMTP_SECURE === 'true' || port === 465,
-        auth: { user, pass: cleanPass },
-        connectionTimeout: 10000,
-        socketTimeout: 10000
-      });
-    }
+    const isGmail = host.includes('gmail');
+    const targetHost = isGmail ? 'smtp.gmail.com' : host;
+    const targetPort = isGmail ? 465 : port;
+    const targetSecure = isGmail ? true : (process.env.SMTP_SECURE === 'true' || port === 465);
 
-    console.log(`[SMTP Transporter] Initializing Gmail Service for user: ${user}...`);
+    console.log(`[SMTP Transporter] Connecting to ${targetHost}:${targetPort} (SSL: ${targetSecure}) for ${user}...`);
     return nodemailer.createTransport({
-      service: 'gmail',
-      auth: { user, pass: cleanPass }
+      host: targetHost,
+      port: targetPort,
+      secure: targetSecure,
+      auth: { user, pass: cleanPass },
+      tls: {
+        rejectUnauthorized: false
+      },
+      connectionTimeout: 10000,
+      socketTimeout: 10000
     });
   }
 
