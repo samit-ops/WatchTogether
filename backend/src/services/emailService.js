@@ -1,7 +1,15 @@
 const nodemailer = require('nodemailer');
+const dns = require('dns');
 const logger = require('../config/logger');
 
-// Create reusable transporter optimized for Cloud Deployment & Gmail SSL
+// Force IPv4 resolution to prevent ENETUNREACH on Render IPv6 interfaces
+try {
+  if (dns.setDefaultResultOrder) {
+    dns.setDefaultResultOrder('ipv4first');
+  }
+} catch (e) {}
+
+// Create reusable transporter optimized for Cloud Deployment & IPv4 Direct SSL
 const createTransporter = async () => {
   const user = process.env.SMTP_USER || process.env.EMAIL_USER;
   const pass = process.env.SMTP_PASS || process.env.EMAIL_PASS || process.env.EMAIL_PASSWORD;
@@ -22,12 +30,13 @@ const createTransporter = async () => {
     const targetPort = isGmail ? 465 : port;
     const targetSecure = isGmail ? true : (process.env.SMTP_SECURE === 'true' || port === 465);
 
-    console.log(`[SMTP Transporter] Connecting to ${targetHost}:${targetPort} (SSL: ${targetSecure}) for ${user}...`);
+    console.log(`[SMTP Transporter] Connecting to ${targetHost}:${targetPort} via IPv4 (SSL: ${targetSecure}) for ${user}...`);
     return nodemailer.createTransport({
       host: targetHost,
       port: targetPort,
       secure: targetSecure,
       auth: { user, pass: cleanPass },
+      family: 4, // Force IPv4 to bypass Render IPv6 ENETUNREACH
       tls: {
         rejectUnauthorized: false
       },
