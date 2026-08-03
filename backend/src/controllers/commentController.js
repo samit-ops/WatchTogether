@@ -5,7 +5,7 @@ const ApiError = require('../utils/ApiError');
 const ApiResponse = require('../utils/ApiResponse');
 const httpStatus = require('../constants/httpStatus');
 const { validateCommentContent } = require('../utils/moderationFilter');
-const { buildCommentTree } = require('../utils/commentTree');
+const { buildCommentTree, formatSingleComment } = require('../utils/commentTree');
 
 // Helper to broadcast socket events safely
 const emitSocketEvent = (req, roomId, event, payload) => {
@@ -128,18 +128,18 @@ exports.createComment = asyncHandler(async (req, res, next) => {
   });
 
   const populatedComment = await Comment.findById(newComment._id).populate('user', 'name avatar');
-  const formattedTree = buildCommentTree([populatedComment], req.user._id)[0];
+  const formattedComment = formatSingleComment(populatedComment, req.user._id);
 
   // 6. Broadcast Socket.IO event to video_<videoId> room
   const roomId = `video_${videoId}`;
   emitSocketEvent(req, roomId, 'comment-added', {
-    comment: formattedTree,
+    comment: formattedComment,
     videoId,
     parentCommentId: parentComment || null
   });
 
   return res.status(httpStatus.CREATED).json(
-    new ApiResponse(httpStatus.CREATED, { comment: formattedTree }, 'Comment posted successfully')
+    new ApiResponse(httpStatus.CREATED, { comment: formattedComment }, 'Comment posted successfully')
   );
 });
 
@@ -177,7 +177,7 @@ exports.editComment = asyncHandler(async (req, res, next) => {
   await comment.save();
 
   const populatedComment = await Comment.findById(comment._id).populate('user', 'name avatar');
-  const formattedComment = buildCommentTree([populatedComment], req.user._id)[0];
+  const formattedComment = formatSingleComment(populatedComment, req.user._id);
 
   const roomId = `video_${comment.video}`;
   emitSocketEvent(req, roomId, 'comment-updated', {
@@ -265,7 +265,7 @@ exports.toggleLikeComment = asyncHandler(async (req, res, next) => {
   await comment.save();
 
   const populatedComment = await Comment.findById(comment._id).populate('user', 'name avatar');
-  const formattedComment = buildCommentTree([populatedComment], req.user._id)[0];
+  const formattedComment = formatSingleComment(populatedComment, req.user._id);
 
   const roomId = `video_${comment.video}`;
   emitSocketEvent(req, roomId, 'comment-updated', {
@@ -313,7 +313,7 @@ exports.toggleDislikeComment = asyncHandler(async (req, res, next) => {
   await comment.save();
 
   const populatedComment = await Comment.findById(comment._id).populate('user', 'name avatar');
-  const formattedComment = buildCommentTree([populatedComment], req.user._id)[0];
+  const formattedComment = formatSingleComment(populatedComment, req.user._id);
 
   const roomId = `video_${comment.video}`;
   emitSocketEvent(req, roomId, 'comment-updated', {
@@ -353,7 +353,7 @@ exports.reportComment = asyncHandler(async (req, res, next) => {
   }
 
   const populatedComment = await Comment.findById(comment._id).populate('user', 'name avatar');
-  const formattedComment = buildCommentTree([populatedComment], req.user._id)[0];
+  const formattedComment = formatSingleComment(populatedComment, req.user._id);
 
   const roomId = `video_${comment.video}`;
   emitSocketEvent(req, roomId, 'comment-updated', {
