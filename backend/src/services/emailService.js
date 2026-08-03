@@ -1,7 +1,7 @@
 const nodemailer = require('nodemailer');
 const logger = require('../config/logger');
 
-// Create reusable transporter
+// Create reusable transporter with strict 5s connection timeouts
 const createTransporter = async () => {
   if (process.env.SMTP_HOST && process.env.SMTP_USER) {
     const port = Number(process.env.SMTP_PORT) || 587;
@@ -14,7 +14,10 @@ const createTransporter = async () => {
       auth: {
         user: process.env.SMTP_USER,
         pass: process.env.SMTP_PASS
-      }
+      },
+      connectionTimeout: 5000,
+      greetingTimeout: 5000,
+      socketTimeout: 5000
     };
 
     if (isGmail) {
@@ -24,22 +27,8 @@ const createTransporter = async () => {
     return nodemailer.createTransport(config);
   }
 
-  // Fallback to Ethereal Test Account for instant email preview links
-  try {
-    const testAccount = await nodemailer.createTestAccount();
-    return nodemailer.createTransport({
-      host: 'smtp.ethereal.email',
-      port: 587,
-      secure: false,
-      auth: {
-        user: testAccount.user,
-        pass: testAccount.pass
-      }
-    });
-  } catch (err) {
-    logger.error('Failed to create Ethereal test email account:', err);
-    return null;
-  }
+  // Fallback: If no custom SMTP environment variables, do not hang on external network requests
+  return null;
 };
 
 const sendSubscriptionConfirmation = async ({ user, plan, amount, razorpayPaymentId, razorpayOrderId, transactionDate, features = [] }) => {
@@ -122,27 +111,23 @@ const sendSubscriptionConfirmation = async ({ user, plan, amount, razorpayPaymen
         doc.on('end', () => resolve(Buffer.concat(buffers)));
         doc.on('error', reject);
 
-        // Header / Branding
         doc.fillColor('#3B82F6').fontSize(24).text('Watch Together', { align: 'center' });
         doc.fillColor('#64748B').fontSize(12).text('OFFICIAL INVOICE & RECEIPT', { align: 'center' });
         doc.moveDown(1);
         doc.moveTo(50, doc.y).lineTo(550, doc.y).strokeColor('#CBD5E1').stroke();
         doc.moveDown(1);
 
-        // Customer Info
         doc.fillColor('#1E293B').fontSize(14).text(`Customer Name: ${user.name}`);
         doc.fillColor('#475569').fontSize(11).text(`Email Address: ${user.email}`);
         doc.text(`Transaction Date: ${formattedDate}`);
         doc.moveDown(1);
 
-        // Transaction Table / Summary Box
         doc.fillColor('#3B82F6').fontSize(16).text(`Subscription Plan: ${plan} Plan`);
         doc.fillColor('#10B981').fontSize(14).text(`Amount Paid: INR ${amount}`);
         doc.fillColor('#475569').fontSize(11).text(`Payment ID: ${razorpayPaymentId || 'N/A'}`);
         doc.text(`Order ID: ${razorpayOrderId || 'N/A'}`);
         doc.moveDown(1);
 
-        // Benefits
         doc.fillColor('#1E293B').fontSize(12).text('Unlocked Features:');
         doc.moveDown(0.5);
         (features || []).forEach(f => {
@@ -176,15 +161,10 @@ const sendSubscriptionConfirmation = async ({ user, plan, amount, razorpayPaymen
         ];
       }
 
-      const info = await transporter.sendMail(mailOptions);
-      logger.info(`[Email] Subscription invoice sent to ${user.email} with PDF attachment`);
-
-      const previewUrl = nodemailer.getTestMessageUrl(info);
-      if (previewUrl) {
-        logger.info(`[Email Preview URL] View rendered invoice email online: ${previewUrl}`);
-      }
+      await transporter.sendMail(mailOptions);
+      logger.info(`[Email] Subscription invoice sent to ${user.email}`);
     } else {
-      logger.info(`[Email Dispatch Simulation] Invoice sent to ${user.email} for ${plan} plan (₹${amount})`);
+      logger.info(`[Email Simulation] Invoice prepared for ${user.email} (${plan} plan)`);
     }
 
     return true;
@@ -208,8 +188,13 @@ const sendInvoiceEmail = async ({ user, paymentRecord }) => {
 
 const sendOtpEmail = async ({ user, otpCode, purpose = 'LOGIN_NEW_DEVICE' }) => {
   try {
+    logger.info(`[OTP LOGGED FOR PRODUCTION TESTING] User: ${user.email} | OTP: ${otpCode}`);
+
     const transporter = await createTransporter();
-    if (!transporter) return false;
+    if (!transporter) {
+      logger.info(`[SMTP Not Configured] Active OTP for ${user.email} is: ${otpCode}`);
+      return true;
+    }
 
     const isReset = purpose === 'FORGOT_PASSWORD';
     const isSignup = purpose === 'SIGNUP_VERIFICATION';
@@ -258,15 +243,6 @@ const sendOtpEmail = async ({ user, otpCode, purpose = 'LOGIN_NEW_DEVICE' }) => 
 
     const info = await transporter.sendMail(mailOptions);
     logger.info(`[OTP Email Dispatched] ID: ${info.messageId} to ${user.email} (OTP: ${otpCode})`);
-
-    const previewUrl = nodemailer.getTestMessageUrl(info);
-    if (previewUrl) {
-      console.log('\n======================================================');
-      console.log(`✉️ [EMAIL PREVIEW URL (OTP)]: ${previewUrl}`);
-      console.log(`🔐 OTP Code: ${otpCode}`);
-      console.log('======================================================\n');
-    }
-
     return true;
   } catch (error) {
     logger.error(`[Email Error] Failed to send OTP email: ${error.message}`);

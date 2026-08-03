@@ -64,21 +64,17 @@ exports.register = asyncHandler(async (req, res, next) => {
     }
   });
 
-  // Dispatch OTP safely
-  try {
-    if (otpChannel === 'sms') {
-      await sendSmsOtp({ phoneNumber: user.phoneNumber, otpCode, purpose: 'SIGNUP_VERIFICATION' });
-    } else if (otpChannel === 'both') {
-      await sendOtpEmail({ user, otpCode, purpose: 'SIGNUP_VERIFICATION' }).catch(() => {});
-      if (user.phoneNumber) {
-        await sendSmsOtp({ phoneNumber: user.phoneNumber, otpCode, purpose: 'SIGNUP_VERIFICATION' });
-      }
-    } else {
-      // Default: Email
-      await sendOtpEmail({ user, otpCode, purpose: 'SIGNUP_VERIFICATION' }).catch(() => {});
+  // Dispatch OTP asynchronously without blocking the HTTP response
+  if (otpChannel === 'sms') {
+    sendSmsOtp({ phoneNumber: user.phoneNumber, otpCode, purpose: 'SIGNUP_VERIFICATION' }).catch(err => console.error('SMS send error:', err));
+  } else if (otpChannel === 'both') {
+    sendOtpEmail({ user, otpCode, purpose: 'SIGNUP_VERIFICATION' }).catch(err => console.error('Email send error:', err));
+    if (user.phoneNumber) {
+      sendSmsOtp({ phoneNumber: user.phoneNumber, otpCode, purpose: 'SIGNUP_VERIFICATION' }).catch(err => console.error('SMS send error:', err));
     }
-  } catch (mailErr) {
-    console.error('OTP dispatch error:', mailErr);
+  } else {
+    // Default: Email
+    sendOtpEmail({ user, otpCode, purpose: 'SIGNUP_VERIFICATION' }).catch(err => console.error('Email send error:', err));
   }
 
   res.status(httpStatus.CREATED).json(
