@@ -81,10 +81,7 @@ const downloadRoutes = require('./routes/downloadRoutes');
 const subscriptionRoutes = require('./routes/subscriptionRoutes');
 const commentRoutes = require('./routes/commentRoutes');
 
-// Mount Routers with Auth Protection
-app.use('/api/v1/auth/login', authLimiter);
-app.use('/api/v1/auth/verify-otp', authLimiter);
-
+// Mount Routers
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/videos', videoRoutes);
 app.use('/api/v1/rooms', roomRoutes);

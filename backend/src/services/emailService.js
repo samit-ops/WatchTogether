@@ -4,15 +4,24 @@ const logger = require('../config/logger');
 // Create reusable transporter
 const createTransporter = async () => {
   if (process.env.SMTP_HOST && process.env.SMTP_USER) {
-    return nodemailer.createTransport({
+    const port = Number(process.env.SMTP_PORT) || 587;
+    const isGmail = process.env.SMTP_HOST.includes('gmail');
+
+    const config = {
       host: process.env.SMTP_HOST,
-      port: Number(process.env.SMTP_PORT) || 587,
-      secure: process.env.SMTP_SECURE === 'true',
+      port: port,
+      secure: process.env.SMTP_SECURE === 'true' || port === 465,
       auth: {
         user: process.env.SMTP_USER,
         pass: process.env.SMTP_PASS
       }
-    });
+    };
+
+    if (isGmail) {
+      config.service = 'gmail';
+    }
+
+    return nodemailer.createTransport(config);
   }
 
   // Fallback to Ethereal Test Account for instant email preview links
