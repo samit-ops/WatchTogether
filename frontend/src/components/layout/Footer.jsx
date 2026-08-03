@@ -63,7 +63,7 @@ export function Footer() {
           <div className="gradient-divider mb-6" />
 
           <div className="flex flex-col md:flex-row items-center justify-between gap-4 text-xs text-muted">
-            <p>&copy; {new Date().getFullYear()} <span className="font-semibold text-text">WatchTogether</span>. All rights reserved.</p>
+            <p>&copy; 2026 Watch Together. All rights reserved.</p>
             <div className="flex gap-6">
               <span className="hover:text-text cursor-pointer transition-colors">Privacy Policy</span>
               <span className="hover:text-text cursor-pointer transition-colors">Terms of Service</span>
