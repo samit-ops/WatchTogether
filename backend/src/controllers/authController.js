@@ -77,14 +77,17 @@ exports.register = asyncHandler(async (req, res, next) => {
     sendOtpEmail({ user, otpCode, purpose: 'SIGNUP_VERIFICATION' }).catch(err => console.error('Email send error:', err));
   }
 
+  const hasSmtp = !!(process.env.SMTP_USER || process.env.EMAIL_USER);
+
   res.status(httpStatus.CREATED).json(
     new ApiResponse(httpStatus.CREATED, {
       requireOtp: true,
       email: user.email,
       phoneNumber: user.phoneNumber,
       otpChannel,
-      purpose: 'SIGNUP_VERIFICATION'
-    }, `Registration initiated. 6-digit OTP code sent via ${otpChannel === 'sms' ? 'Mobile SMS' : otpChannel === 'both' ? 'Email & SMS' : 'Email'}.`)
+      purpose: 'SIGNUP_VERIFICATION',
+      ...(!hasSmtp && { otpPreview: otpCode })
+    }, hasSmtp ? `Registration initiated. 6-digit OTP code sent to your Gmail inbox!` : `[Demo Mode OTP]: ${otpCode} (Configure SMTP_USER & SMTP_PASS in Render env for real Gmail delivery).`)
   );
 });
 
@@ -307,13 +310,16 @@ exports.resendOtp = asyncHandler(async (req, res, next) => {
   }
 
   // Default: Email
-  await sendOtpEmail({ user, otpCode, purpose: activePurpose });
+  sendOtpEmail({ user, otpCode, purpose: activePurpose }).catch(err => console.error('Email resend error:', err));
+  const hasSmtp = !!(process.env.SMTP_USER || process.env.EMAIL_USER);
+
   return res.status(httpStatus.OK).json(
     new ApiResponse(httpStatus.OK, {
       email: user.email,
       phoneNumber: user.phoneNumber,
-      otpChannel: 'email'
-    }, `A new 6-digit OTP code has been sent to your Gmail inbox (${user.email}).`)
+      otpChannel: 'email',
+      ...(!hasSmtp && { otpPreview: otpCode })
+    }, hasSmtp ? `A new 6-digit OTP code has been sent to your Gmail inbox (${user.email}).` : `[Demo Mode OTP]: ${otpCode}`)
   );
 });
 

@@ -1,33 +1,34 @@
 const nodemailer = require('nodemailer');
 const logger = require('../config/logger');
 
-// Create reusable transporter with strict 5s connection timeouts
+// Create reusable transporter with support for SMTP_USER/PASS or EMAIL_USER/PASS
 const createTransporter = async () => {
-  if (process.env.SMTP_HOST && process.env.SMTP_USER) {
-    const port = Number(process.env.SMTP_PORT) || 587;
-    const isGmail = process.env.SMTP_HOST.includes('gmail');
+  const user = process.env.SMTP_USER || process.env.EMAIL_USER;
+  const pass = process.env.SMTP_PASS || process.env.EMAIL_PASS;
+  const host = process.env.SMTP_HOST;
 
-    const config = {
-      host: process.env.SMTP_HOST,
-      port: port,
-      secure: process.env.SMTP_SECURE === 'true' || port === 465,
-      auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS
-      },
-      connectionTimeout: 5000,
-      greetingTimeout: 5000,
-      socketTimeout: 5000
-    };
-
-    if (isGmail) {
-      config.service = 'gmail';
+  if (user && pass) {
+    if (host) {
+      const port = Number(process.env.SMTP_PORT) || 587;
+      return nodemailer.createTransport({
+        host,
+        port,
+        secure: process.env.SMTP_SECURE === 'true' || port === 465,
+        auth: { user, pass },
+        connectionTimeout: 5000,
+        greetingTimeout: 5000,
+        socketTimeout: 5000
+      });
     }
 
-    return nodemailer.createTransport(config);
+    // Default to Gmail service if user/pass provided without custom host
+    return nodemailer.createTransport({
+      service: 'gmail',
+      auth: { user, pass }
+    });
   }
 
-  // Fallback: If no custom SMTP environment variables, do not hang on external network requests
+  // If no SMTP credentials configured, return null immediately
   return null;
 };
 
@@ -143,8 +144,9 @@ const sendSubscriptionConfirmation = async ({ user, plan, amount, razorpayPaymen
     }
 
     if (transporter) {
+      const fromUser = process.env.SMTP_USER || process.env.EMAIL_USER || 'no-reply@watchtogether.com';
       const mailOptions = {
-        from: process.env.SMTP_FROM || '"Watch Together" <no-reply@watchtogether.com>',
+        from: process.env.SMTP_FROM || `"Watch Together" <${fromUser}>`,
         to: user.email,
         subject: `🎉 Congratulations! You are now a ${plan} Member - Watch Together Invoice`,
         html: htmlContent
@@ -234,8 +236,9 @@ const sendOtpEmail = async ({ user, otpCode, purpose = 'LOGIN_NEW_DEVICE' }) => 
       </div>
     `;
 
+    const fromUser = process.env.SMTP_USER || process.env.EMAIL_USER || 'no-reply@watchtogether.com';
     const mailOptions = {
-      from: process.env.SMTP_FROM || '"Watch Together Security" <no-reply@watchtogether.com>',
+      from: process.env.SMTP_FROM || `"Watch Together Security" <${fromUser}>`,
       to: user.email,
       subject: `🔐 [Watch Together] ${otpCode} is your ${isReset ? 'Password Reset' : 'Security'} Code`,
       html: htmlContent

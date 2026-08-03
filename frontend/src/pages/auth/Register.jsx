@@ -171,11 +171,16 @@ export default function Register() {
       const response = await register(name, email, password, phoneNumber, city.trim(), pincode.trim(), 'email');
 
       if (response?.requireOtp) {
-        toast.success(response.message || '6-digit OTP code sent to your Gmail inbox!');
+        if (response?.otpPreview) {
+          toast.info(`[Demo Mode OTP]: ${response.otpPreview}`);
+        } else {
+          toast.success(response.message || '6-digit OTP code sent to your Gmail inbox!');
+        }
         setOtpData({
           email: response.email || email,
           phoneNumber: response.phoneNumber || phoneNumber,
           otpChannel: 'email',
+          otpPreview: response.otpPreview,
           purpose: 'SIGNUP_VERIFICATION',
           city: city.trim(),
           state: pincode.trim()
@@ -433,6 +438,7 @@ export default function Register() {
           initialChannel="email"
           city={otpData.city}
           state={otpData.state}
+          otpPreview={otpData.otpPreview}
           onSuccess={handleOtpSuccess}
           onClose={() => setOtpData(null)}
         />

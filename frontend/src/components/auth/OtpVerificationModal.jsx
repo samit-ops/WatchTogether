@@ -4,7 +4,8 @@ import { Button } from '@/components/ui/Button';
 import api from '@/services/api';
 import { toast } from '@/utils/toast';
 
-export function OtpVerificationModal({ email, phoneNumber, purpose = 'LOGIN_NEW_DEVICE', initialChannel = 'email', city, state, onSuccess, onClose }) {
+export function OtpVerificationModal({ email, phoneNumber, purpose = 'LOGIN_NEW_DEVICE', initialChannel = 'email', city, state, otpPreview: initialOtpPreview, onSuccess, onClose }) {
+  const [otpPreview, setOtpPreview] = useState(initialOtpPreview);
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
   const [loading, setLoading] = useState(false);
   const [resendLoading, setResendLoading] = useState(false);
@@ -145,8 +146,15 @@ export function OtpVerificationModal({ email, phoneNumber, purpose = 'LOGIN_NEW_
           </span>
           <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-primary/10 text-primary">
             {activeChannel === 'sms' ? 'SMS Active' : 'Email Active'}
-          </span>
         </div>
+
+        {otpPreview && (
+          <div className="mb-4 p-3 bg-primary/10 border border-primary/30 rounded-xl text-center">
+            <p className="text-xs text-primary font-bold">🔑 Test Mode OTP Code:</p>
+            <p className="text-xl font-mono font-extrabold tracking-widest text-emerald-400 mt-1">{otpPreview}</p>
+            <p className="text-[10px] text-muted mt-1">Add SMTP_USER & SMTP_PASS in Render env for direct Gmail delivery.</p>
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="flex justify-center gap-2 sm:gap-3" onPaste={handlePaste}>
