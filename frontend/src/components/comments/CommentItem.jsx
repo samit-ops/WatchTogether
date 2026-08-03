@@ -49,19 +49,19 @@ export function CommentItem({
   const [targetLang, setTargetLang] = useState('en');
   const [translating, setTranslating] = useState(false);
 
-  const commentUserId = comment.user?.id || comment.user?._id;
-  const currentUserId = currentUser?.id || currentUser?._id;
+  const commentUserId = comment?.user?.id || comment?.user?._id || comment?.user;
+  const currentUserId = currentUser?.id || currentUser?._id || currentUser;
 
   const isCreator = Boolean(
-    videoUploaderId && commentUserId && commentUserId.toString() === videoUploaderId.toString()
+    videoUploaderId && commentUserId && String(commentUserId) === String(videoUploaderId)
   );
 
   const isAuthor = Boolean(
-    currentUserId && commentUserId && commentUserId.toString() === currentUserId.toString()
+    currentUserId && commentUserId && String(currentUserId) === String(commentUserId)
   );
 
   const isVideoCreator = Boolean(
-    currentUserId && videoUploaderId && currentUserId.toString() === videoUploaderId.toString()
+    currentUserId && videoUploaderId && String(currentUserId) === String(videoUploaderId)
   );
 
   const canDelete = isAuthor || isVideoCreator;

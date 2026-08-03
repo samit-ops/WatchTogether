@@ -10,15 +10,16 @@ import { Loader } from '@/components/ui/Loader';
 
 // Helper to insert or replace comments cleanly without duplicates
 function upsertCommentInTree(tree, newComment, tempIdToReplace = null) {
-  if (!newComment) return tree;
-  const newId = (newComment.id || newComment._id).toString();
+  if (!newComment) return tree || [];
+  const newId = String(newComment.id || newComment._id || '');
 
   const isMatch = (item) => {
-    const itemId = (item.id || item._id).toString();
-    if (itemId === newId) return true;
-    if (tempIdToReplace && itemId === tempIdToReplace.toString()) return true;
+    if (!item) return false;
+    const itemId = String(item.id || item._id || '');
+    if (itemId && newId && itemId === newId) return true;
+    if (tempIdToReplace && itemId === String(tempIdToReplace)) return true;
     if (itemId.startsWith('temp-') && 
-        (item.user?.id || item.user?._id) === (newComment.user?.id || newComment.user?._id) && 
+        String(item.user?.id || item.user?._id || '') === String(newComment.user?.id || newComment.user?._id || '') && 
         item.text === newComment.text) {
       return true;
     }
@@ -26,12 +27,12 @@ function upsertCommentInTree(tree, newComment, tempIdToReplace = null) {
   };
 
   const existsInTree = (items) => {
-    return items.some(item => isMatch(item) || (item.replies && existsInTree(item.replies)));
+    return (items || []).some(item => isMatch(item) || (item?.replies && existsInTree(item.replies)));
   };
 
   if (existsInTree(tree)) {
     const replaceInTree = (items) => {
-      return items.map(item => {
+      return (items || []).map(item => {
         if (isMatch(item)) {
           return {
             ...newComment,
@@ -49,15 +50,15 @@ function upsertCommentInTree(tree, newComment, tempIdToReplace = null) {
 
   // Not present -> Insert new comment
   if (!newComment.parentComment) {
-    return [newComment, ...tree];
+    return [newComment, ...(tree || [])];
   } else {
-    const parentId = newComment.parentComment.toString();
+    const parentId = String(newComment.parentComment?.id || newComment.parentComment?._id || newComment.parentComment || '');
     const insertReply = (items) => {
-      return items.map(item => {
-        const itemId = (item.id || item._id).toString();
-        if (itemId === parentId) {
+      return (items || []).map(item => {
+        const itemId = String(item.id || item._id || '');
+        if (itemId && parentId && itemId === parentId) {
           const replies = item.replies || [];
-          const replyExists = replies.some(r => (r.id || r._id).toString() === newId);
+          const replyExists = replies.some(r => String(r?.id || r?._id || '') === newId);
           if (replyExists) return item;
           return { ...item, replies: [...replies, newComment] };
         }
@@ -149,20 +150,20 @@ export function CommentSection({ videoId, videoUploaderId, videoSource = 'platfo
 
     // Real-time Event Handlers
     const handleCommentAdded = ({ comment, videoId: eventVideoId }) => {
-      if (eventVideoId.toString() !== videoId.toString()) return;
+      if (String(eventVideoId || '') !== String(videoId || '')) return;
 
       setComments(prev => upsertCommentInTree(prev, comment));
     };
 
     const handleCommentUpdated = ({ comment, videoId: eventVideoId }) => {
-      if (eventVideoId.toString() !== videoId.toString()) return;
+      if (String(eventVideoId || '') !== String(videoId || '')) return;
 
       setComments(prev => {
         const updateTree = (items) => {
-          return items.map(item => {
-            const itemId = (item.id || item._id).toString();
-            const updatedId = (comment.id || comment._id).toString();
-            if (itemId === updatedId) {
+          return (items || []).map(item => {
+            const itemId = String(item?.id || item?._id || '');
+            const updatedId = String(comment?.id || comment?._id || '');
+            if (itemId && updatedId && itemId === updatedId) {
               return { ...item, ...comment, replies: item.replies || [] };
             }
             if (item.replies && item.replies.length > 0) {
@@ -176,12 +177,13 @@ export function CommentSection({ videoId, videoUploaderId, videoSource = 'platfo
     };
 
     const handleCommentDeleted = ({ deletedIds, videoId: eventVideoId }) => {
-      if (eventVideoId.toString() !== videoId.toString()) return;
+      if (String(eventVideoId || '') !== String(videoId || '')) return;
 
       setComments(prev => {
+        const strDeletedIds = (deletedIds || []).map(d => String(d));
         const removeFromTree = (items) => {
-          return items
-            .filter(item => !deletedIds.includes((item.id || item._id).toString()))
+          return (items || [])
+            .filter(item => !strDeletedIds.includes(String(item?.id || item?._id || '')))
             .map(item => {
               if (item.replies && item.replies.length > 0) {
                 return { ...item, replies: removeFromTree(item.replies) };
