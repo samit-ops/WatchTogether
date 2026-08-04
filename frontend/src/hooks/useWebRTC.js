@@ -243,12 +243,11 @@ export function useWebRTC(socket, roomId, participants, currentSocketId) {
       try {
         const isOfferCollision = peer.signalingState !== 'stable';
         if (isOfferCollision) {
-          if (currentSocketId < from) {
-            console.log(`[WebRTC] Offer collision detected with ${from}, rolling back local offer`);
+          console.log(`[WebRTC] Offer collision detected with ${from}, rolling back local offer to accept incoming offer`);
+          try {
             await peer.setLocalDescription({ type: 'rollback' });
-          } else {
-            console.log(`[WebRTC] Offer collision detected with ${from}, impolite peer ignoring offer`);
-            return;
+          } catch (rollbackErr) {
+            console.log('[WebRTC] Rollback notice:', rollbackErr.message);
           }
         }
 
