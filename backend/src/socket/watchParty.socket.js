@@ -85,21 +85,22 @@ module.exports = (io, socket) => {
       socket.join(roomId);
       socket.currentRoom = roomId;
 
-      // Remove stale entries safely whether p.user is ObjectId or populated object
-      room.participants = room.participants.filter(p => {
-        const pUserId = (p.user?._id || p.user).toString();
-        return pUserId !== userId;
-      });
-
-      room.participants.push({
-        user: socket.user._id,
-        socketId: socket.id,
-        role: isHost ? 'host' : 'guest',
-        joinedAt: new Date(),
-        isMuted: true,
-        isCameraOff: true,
-        isScreenSharing: false
-      });
+      // Update or add participant entry on page refresh
+      const existingParticipant = room.participants.find(p => (p.user?._id || p.user).toString() === userId);
+      if (existingParticipant) {
+        existingParticipant.socketId = socket.id;
+        if (isHost) existingParticipant.role = 'host';
+      } else {
+        room.participants.push({
+          user: socket.user._id,
+          socketId: socket.id,
+          role: isHost ? 'host' : 'guest',
+          joinedAt: new Date(),
+          isMuted: true,
+          isCameraOff: true,
+          isScreenSharing: false
+        });
+      }
 
       await room.save();
 

@@ -44,12 +44,15 @@ export function useRoom(socket, roomId) {
     initRoom();
     
     if (socket && roomId) {
-      if (leaveTimeoutRef.current) {
-        clearTimeout(leaveTimeoutRef.current);
-        leaveTimeoutRef.current = null;
+      const emitJoin = () => {
+        socket.emit('join-room', { roomId });
+      };
+
+      if (socket.connected) {
+        emitJoin();
+      } else {
+        socket.once('connect', emitJoin);
       }
-      
-      socket.emit('join-room', { roomId });
       
       socket.on('participants-updated', (data) => {
         setParticipants(data.participants || []);
@@ -90,16 +93,8 @@ export function useRoom(socket, roomId) {
       });
     }
 
-    const handleBeforeUnload = () => {
-      if (socket && roomId) {
-        socket.emit('leave-room', { roomId });
-      }
-    };
-    window.addEventListener('beforeunload', handleBeforeUnload);
-
     return () => {
       mounted = false;
-      window.removeEventListener('beforeunload', handleBeforeUnload);
       if (socket && roomId) {
         socket.off('participants-updated');
         socket.off('room-ended');
@@ -107,10 +102,6 @@ export function useRoom(socket, roomId) {
         socket.off('room-locked');
         socket.off('error');
         socket.off('host-changed');
-        
-        leaveTimeoutRef.current = setTimeout(() => {
-          socket.emit('leave-room', { roomId });
-        }, 200);
       }
     };
   }, [socket, roomId, navigate, user?._id, user?.id]);
