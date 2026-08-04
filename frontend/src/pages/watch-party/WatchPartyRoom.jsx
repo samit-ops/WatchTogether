@@ -13,7 +13,9 @@ import { ParticipantGrid } from '@/components/watch-party/ParticipantGrid';
 import { ParticipantList } from '@/components/watch-party/ParticipantList';
 import { Controls } from '@/components/watch-party/Controls';
 import { InviteModal } from '@/components/watch-party/InviteModal';
-import { Copy, Users, Activity, Link2, Settings, Shield, Lock, Unlock, MonitorUp, Maximize2, Minimize2 } from 'lucide-react';
+import { LeaveConfirmModal } from '@/components/watch-party/LeaveConfirmModal';
+import { MiniPipWindow } from '@/components/watch-party/MiniPipWindow';
+import { Copy, Users, Activity, Link2, Settings, Shield, Lock, Unlock, MonitorUp, Maximize2, Minimize2, MessageSquare, ArrowLeft } from 'lucide-react';
 import { cn } from '@/utils/cn';
 
 export default function WatchPartyRoom() {
@@ -32,13 +34,29 @@ export default function WatchPartyRoom() {
   
   const [activeScreenShare, setActiveScreenShare] = useState(null);
   const [showInviteModal, setShowInviteModal] = useState(false);
-  const [activeTab, setActiveTab] = useState('chat');
+  const [showLeaveModal, setShowLeaveModal] = useState(false);
+  const [isPipActive, setIsPipActive] = useState(false);
+  const [activeTab, setActiveTab] = useState('grid'); // 'grid' | 'chat' | 'participants'
   const [showSettings, setShowSettings] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   
   const settingsRef = useRef(null);
   const screenShareVideoRef = useRef(null);
   const screenContainerRef = useRef(null);
+
+  // Mobile Hardware / Browser Back Button Interception -> Picture in Picture Mode
+  useEffect(() => {
+    window.history.pushState({ roomSession: true }, '');
+
+    const handlePopState = () => {
+      // Intercept mobile back button press: minimize into floating PiP mode instead of disconnecting!
+      setIsPipActive(true);
+      toast.info('Meeting minimized to Picture-in-Picture mode');
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
 
   const toggleFullscreen = () => {
     if (!screenContainerRef.current) return;
@@ -148,9 +166,11 @@ export default function WatchPartyRoom() {
     socket?.emit('recording-stop', { roomId });
   };
 
-  const handleLeave = () => {
+  const handleConfirmLeave = () => {
     cleanup();
     leaveRoom();
+    setShowLeaveModal(false);
+    setIsPipActive(false);
     navigate('/');
   };
 
@@ -161,10 +181,14 @@ export default function WatchPartyRoom() {
     navigate('/');
   };
 
+  const handleToggleTab = (tab) => {
+    setActiveTab(prev => prev === tab ? 'grid' : tab);
+  };
+
   const renderVideoArea = () => {
     if (activeScreenShare) {
       return (
-        <div ref={screenContainerRef} className="w-full h-full bg-black flex items-center justify-center relative p-4 group">
+        <div ref={screenContainerRef} className="w-full h-full bg-black flex items-center justify-center relative p-2 sm:p-4 group">
           <button
             onClick={toggleFullscreen}
             className="absolute top-4 right-4 z-20 p-2.5 rounded-xl bg-black/60 hover:bg-black/80 text-white backdrop-blur-sm transition-all opacity-80 hover:opacity-100 shadow-lg"
@@ -174,13 +198,13 @@ export default function WatchPartyRoom() {
           </button>
 
           {activeScreenShare === socket?.id ? (
-            <div className="flex flex-col items-center justify-center text-center max-w-lg bg-surface border border-border p-8 rounded-3xl shadow-2xl">
-              <div className="w-20 h-20 rounded-full bg-blue-500/20 text-blue-500 flex items-center justify-center mb-6 animate-pulse">
-                <MonitorUp className="w-10 h-10" />
+            <div className="flex flex-col items-center justify-center text-center max-w-lg bg-surface border border-border p-6 rounded-3xl shadow-2xl">
+              <div className="w-16 h-16 rounded-full bg-blue-500/20 text-blue-500 flex items-center justify-center mb-4 animate-pulse">
+                <MonitorUp className="w-8 h-8" />
               </div>
-              <h2 className="text-2xl font-bold text-text mb-2">You are sharing your screen</h2>
+              <h2 className="text-xl font-bold text-text mb-2">You are sharing your screen</h2>
               <p className="text-muted text-sm mb-6">
-                Your screen is being broadcast live to all participants in this Watch Party.
+                Your screen is being broadcast live to all participants.
               </p>
               <button
                 onClick={stopScreenShare}
@@ -214,7 +238,7 @@ export default function WatchPartyRoom() {
       );
     } else {
       return (
-        <div className="w-full h-full flex items-center justify-center p-4">
+        <div className="w-full h-full flex items-center justify-center p-2 sm:p-4">
           <CustomVideoPlayer 
             src={room.video?.videoUrl} 
             poster={room.video?.thumbnailUrl || room.video?.thumbnail} 
@@ -229,30 +253,79 @@ export default function WatchPartyRoom() {
     }
   };
 
+  // Render Picture in Picture Floating Window if minimized
+  if (isPipActive) {
+    return (
+      <div className="min-h-[calc(100vh-4rem)] bg-background p-8 flex flex-col items-center justify-center text-center">
+        <h2 className="text-2xl font-bold text-text mb-2">Meeting Active in Background</h2>
+        <p className="text-muted text-sm mb-6 max-w-md">
+          You are currently in Watch Party room <span className="font-mono font-bold text-primary">{roomId}</span>. Your audio and video streams remain active in floating Picture-in-Picture mode.
+        </p>
+        <button
+          onClick={() => setIsPipActive(false)}
+          className="px-6 py-3 bg-primary hover:bg-primary/90 text-white font-semibold rounded-xl flex items-center gap-2 transition-colors shadow-xl"
+        >
+          <Maximize2 className="w-5 h-5" />
+          Return to Meeting
+        </button>
+
+        <MiniPipWindow
+          localStream={localStream}
+          remoteStreams={remoteStreams}
+          participants={participants}
+          currentUserId={user?._id || user?.id}
+          audioEnabled={audioEnabled}
+          videoEnabled={videoEnabled}
+          onToggleAudio={handleToggleAudio}
+          onToggleVideo={handleToggleVideo}
+          onExpand={() => setIsPipActive(false)}
+          onLeave={() => setShowLeaveModal(true)}
+        />
+
+        <LeaveConfirmModal
+          isOpen={showLeaveModal}
+          onClose={() => setShowLeaveModal(false)}
+          onConfirm={handleConfirmLeave}
+          isHost={isHost}
+        />
+      </div>
+    );
+  }
+
   return (
-    <div className="flex flex-col h-[calc(100vh-4rem)] bg-background overflow-hidden">
+    <div className="flex flex-col h-[calc(100vh-4rem)] bg-background overflow-hidden relative">
       {/* Top Bar */}
-      <div className="h-16 border-b border-border bg-surface flex items-center justify-between px-4 shrink-0">
-        <div className="flex items-center gap-4">
-          <h1 className="text-lg font-bold text-text truncate max-w-[200px] md:max-w-md">
+      <div className="h-14 sm:h-16 border-b border-border bg-surface flex items-center justify-between px-3 sm:px-4 shrink-0 z-30">
+        <div className="flex items-center gap-3 sm:gap-4">
+          <button
+            onClick={() => setIsPipActive(true)}
+            className="p-1.5 rounded-lg hover:bg-white/10 text-muted hover:text-text transition-colors"
+            title="Minimize to Picture-in-Picture"
+          >
+            <ArrowLeft className="w-5 h-5" />
+          </button>
+
+          <h1 className="text-base sm:text-lg font-bold text-text truncate max-w-[150px] sm:max-w-xs md:max-w-md">
             {room.video?.title || 'Live Watch Party'}
           </h1>
-          <div className="hidden md:flex items-center gap-2 bg-background px-3 py-1 rounded-full border border-border text-sm font-mono text-muted">
-            <Activity className="w-4 h-4 text-green-500" />
+          
+          <div className="hidden md:flex items-center gap-2 bg-background px-3 py-1 rounded-full border border-border text-xs font-mono text-muted">
+            <Activity className="w-3.5 h-3.5 text-green-500" />
             {roomId}
           </div>
+
           <button 
             onClick={() => setShowInviteModal(true)}
-            className="flex items-center gap-1.5 text-sm text-primary hover:text-primary/80 transition-colors bg-primary/10 px-3 py-1.5 rounded-full"
+            className="flex items-center gap-1.5 text-xs sm:text-sm text-primary hover:text-primary/80 transition-colors bg-primary/10 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-full"
           >
-            <Link2 className="w-4 h-4" />
+            <Link2 className="w-3.5 h-3.5" />
             <span className="hidden sm:inline">Invite</span>
           </button>
         </div>
 
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2 text-text text-sm bg-background px-3 py-1.5 rounded-full border border-border">
-            <Users className="w-4 h-4 text-primary" />
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1.5 text-text text-xs sm:text-sm bg-background px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-full border border-border">
+            <Users className="w-3.5 h-3.5 text-primary" />
             {participants.length}
           </div>
           
@@ -325,14 +398,47 @@ export default function WatchPartyRoom() {
       </div>
 
       {/* Main Content Area */}
-      <div className="flex-1 flex overflow-hidden">
-        {/* Video Area */}
-        <div className="flex-1 flex flex-col bg-black relative">
+      <div className="flex-1 flex flex-col md:flex-row overflow-hidden relative">
+        {/* Mobile View with Chat Open -> Compact PiP Top Preview + Bottom Chat */}
+        {activeTab !== 'grid' && (
+          <div className="md:hidden flex flex-col h-full w-full">
+            {/* Top Compact Mini Video Preview */}
+            <div className="h-44 shrink-0 bg-black relative border-b border-border">
+              {renderVideoArea()}
+            </div>
+
+            {/* Bottom Panel */}
+            <div className="flex-1 overflow-hidden bg-surface">
+              {activeTab === 'chat' && (
+                <ChatPanel 
+                  socket={socket} 
+                  roomId={roomId} 
+                  user={user} 
+                  chatEnabled={meetingPermissions?.chat !== false} 
+                />
+              )}
+              {activeTab === 'participants' && (
+                <ParticipantList 
+                  participants={participants} 
+                  isHost={isHost} 
+                  currentUserId={user?._id || user?.id}
+                  onKick={kickParticipant}
+                  onPromote={promoteParticipant}
+                  onDemote={demoteParticipant}
+                  onTransferHost={transferHost}
+                />
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Primary Desktop Layout / Mobile Full Grid View */}
+        <div className={cn("flex-1 flex flex-col bg-black relative transition-all", activeTab !== 'grid' && "hidden md:flex")}>
           {renderVideoArea()}
         </div>
 
-        {/* Sidebar */}
-        <div className="w-80 lg:w-96 flex flex-col border-l border-border bg-surface shrink-0">
+        {/* Desktop Sidebar Panel */}
+        <div className={cn("hidden md:flex w-80 lg:w-96 flex-col border-l border-border bg-surface shrink-0 transition-all", activeTab === 'grid' && "md:hidden lg:flex")}>
           {(roomType === 'video' || Boolean(activeScreenShare)) && (
             <div className="h-48 shrink-0 border-b border-border p-2 overflow-y-auto">
               <ParticipantGrid 
@@ -360,15 +466,7 @@ export default function WatchPartyRoom() {
           </div>
           
           <div className="flex-1 overflow-hidden">
-            {activeTab === 'chat' && (
-              <ChatPanel 
-                socket={socket} 
-                roomId={roomId} 
-                user={user} 
-                chatEnabled={meetingPermissions?.chat !== false} 
-              />
-            )}
-            {activeTab === 'participants' && (
+            {activeTab === 'participants' ? (
               <ParticipantList 
                 participants={participants} 
                 isHost={isHost} 
@@ -377,6 +475,13 @@ export default function WatchPartyRoom() {
                 onPromote={promoteParticipant}
                 onDemote={demoteParticipant}
                 onTransferHost={transferHost}
+              />
+            ) : (
+              <ChatPanel 
+                socket={socket} 
+                roomId={roomId} 
+                user={user} 
+                chatEnabled={meetingPermissions?.chat !== false} 
               />
             )}
           </div>
@@ -391,12 +496,14 @@ export default function WatchPartyRoom() {
         isRecording={recording.isRecording}
         isHost={isHost}
         roomType={roomType}
+        activeTab={activeTab}
+        onToggleTab={handleToggleTab}
         onToggleAudio={handleToggleAudio}
         onToggleVideo={handleToggleVideo}
         onToggleScreen={handleToggleScreen}
         onStartRecording={handleStartRecording}
         onStopRecording={handleStopRecording}
-        onLeave={handleLeave}
+        onLeave={() => setShowLeaveModal(true)}
         micDisabled={!meetingPermissions?.mic && !isHost && myRole !== 'moderator'}
         cameraDisabled={!meetingPermissions?.camera && !isHost && myRole !== 'moderator'}
         screenDisabled={!meetingPermissions?.screenShare && !isHost && myRole !== 'moderator'}
@@ -406,6 +513,13 @@ export default function WatchPartyRoom() {
         roomId={roomId} 
         isOpen={showInviteModal} 
         onClose={() => setShowInviteModal(false)} 
+      />
+
+      <LeaveConfirmModal
+        isOpen={showLeaveModal}
+        onClose={() => setShowLeaveModal(false)}
+        onConfirm={handleConfirmLeave}
+        isHost={isHost}
       />
     </div>
   );
