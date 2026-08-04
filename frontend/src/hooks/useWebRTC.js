@@ -34,11 +34,20 @@ export function useWebRTC(socket, roomId, participants, currentSocketId) {
 
     const handleScreenStarted = ({ socketId }) => {
       activeScreenSharingSocketIdRef.current = socketId;
+      const peer = peersRef.current[socketId];
+      if (peer && peer.lastVideoTrack) {
+        setRemoteScreenStreams(prev => ({ ...prev, [socketId]: new MediaStream([peer.lastVideoTrack]) }));
+      }
     };
     const handleScreenStopped = ({ socketId }) => {
       if (activeScreenSharingSocketIdRef.current === socketId) {
         activeScreenSharingSocketIdRef.current = null;
       }
+      setRemoteScreenStreams(prev => {
+        const next = { ...prev };
+        delete next[socketId];
+        return next;
+      });
     };
 
     socket.on('screen-share-started', handleScreenStarted);
@@ -49,6 +58,19 @@ export function useWebRTC(socket, roomId, participants, currentSocketId) {
       socket.off('screen-share-stopped', handleScreenStopped);
     };
   }, [socket]);
+
+  useEffect(() => {
+    if (!participants) return;
+    participants.forEach(p => {
+      if (p.isScreenSharing && p.socketId && p.socketId !== currentSocketId) {
+        activeScreenSharingSocketIdRef.current = p.socketId;
+        const peer = peersRef.current[p.socketId];
+        if (peer && peer.lastVideoTrack) {
+          setRemoteScreenStreams(prev => ({ ...prev, [p.socketId]: new MediaStream([peer.lastVideoTrack]) }));
+        }
+      }
+    });
+  }, [participants, currentSocketId]);
 
   const drainPendingCandidates = useCallback((socketId, peer) => {
     const queue = pendingCandidatesRef.current[socketId] || [];
@@ -77,7 +99,7 @@ export function useWebRTC(socket, roomId, participants, currentSocketId) {
       const screenTrack = screenStreamRef.current.getVideoTracks()[0];
       if (screenTrack) {
         const sender = peer.addTrack(screenTrack, screenStreamRef.current);
-        screenSendersRef.current[targetSocketId] = sender;
+        screenSendersRef.current[targetSocketId] = [sender];
       }
     }
 
@@ -91,6 +113,10 @@ export function useWebRTC(socket, roomId, participants, currentSocketId) {
       console.log(`[WebRTC] Track received from ${targetSocketId}:`, e.track.kind, e.streams);
 
       if (e.track.kind === 'video') {
+        if (peersRef.current[targetSocketId]) {
+          peersRef.current[targetSocketId].lastVideoTrack = e.track;
+        }
+
         const trackLabel = (e.track.label || '').toLowerCase();
         const existingStream = peersRef.current[targetSocketId]?.remoteCameraStream;
         const isSecondTrack = existingStream && existingStream.getVideoTracks().length > 0 && existingStream.getVideoTracks()[0].id !== e.track.id;
