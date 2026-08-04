@@ -26,9 +26,10 @@ export default function UploadVideo() {
   const handleVideoSelect = (e) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
-      if (file.size > 4 * 1024 * 1024 * 1024) {
-        setError('Video file exceeds maximum allowed limit of 4GB.');
-        toast.error('Video file exceeds maximum allowed limit of 4GB.');
+      if (file.size > 100 * 1024 * 1024) {
+        const msg = 'Video file exceeds free plan limit of 100MB. Switch to a paid plan to upgrade your upload limit.';
+        setError(msg);
+        toast.error(msg);
         return;
       }
       setVideoFile(file);
@@ -218,7 +219,12 @@ export default function UploadVideo() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t border-border">
             {/* Video File Upload */}
             <div>
-              <label className="block text-sm font-medium text-text mb-2">Video File * (Max 4GB - Full Movies Supported)</label>
+              <label className="block text-sm font-medium text-text mb-1">
+                Video File * <span className="text-xs text-muted font-normal">(Max 100 MB - Free Plan)</span>
+              </label>
+              <p className="text-[11px] text-amber-400 font-medium mb-2 flex items-center gap-1">
+                ⚡ Switch to a paid plan to upgrade your upload limit up to 4GB+
+              </p>
               <input 
                 type="file" 
                 accept="video/*" 
