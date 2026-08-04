@@ -67,8 +67,12 @@ export function ChatPanel({ socket, roomId, user, chatEnabled = true }) {
     };
   }, [socket, user?.id]);
 
+  const chatContainerRef = useRef(null);
+
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (chatContainerRef.current) {
+      chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+    }
   }, [messages, typingUsers]);
 
   const handleInputChange = (e) => {
@@ -103,7 +107,7 @@ export function ChatPanel({ socket, roomId, user, chatEnabled = true }) {
 
   return (
     <div className="flex flex-col h-full bg-surface border-l border-border">
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+      <div ref={chatContainerRef} className="flex-1 overflow-y-auto p-4 space-y-4">
         {messages.map((msg, i) => {
           if (msg.system) {
             return (

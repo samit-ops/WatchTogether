@@ -543,13 +543,13 @@ export function CustomVideoPlayer({
         </div>
         
         {/* Control Buttons Toolbar */}
-        <div className="flex items-center justify-between text-white">
-          <div className="flex items-center gap-3">
+        <div className="flex items-center justify-between text-white w-full gap-1 sm:gap-2">
+          <div className="flex items-center gap-1 sm:gap-3 overflow-x-auto no-scrollbar shrink">
             {/* Play / Pause Toggle */}
             <button 
               onClick={togglePlay} 
               disabled={!isController && isWatchParty}
-              className={cn("transition-colors focus:outline-none", isController ? "hover:text-primary" : "opacity-50 cursor-not-allowed")}
+              className={cn("transition-colors focus:outline-none shrink-0 p-1", isController ? "hover:text-primary" : "opacity-50 cursor-not-allowed")}
               title={isPlaying ? "Pause (Space/K)" : "Play (Space/K)"}
             >
               {isPlaying ? <Pause className="h-5 w-5 fill-current" /> : <Play className="h-5 w-5 fill-current" />}
@@ -559,7 +559,7 @@ export function CustomVideoPlayer({
             <button 
               onClick={() => skip(-10)} 
               disabled={!isController && isWatchParty}
-              className={cn("transition-colors focus:outline-none flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded hover:bg-white/10", isController ? "hover:text-primary" : "opacity-50 cursor-not-allowed")}
+              className={cn("transition-colors focus:outline-none flex items-center gap-1 text-xs font-semibold px-1.5 sm:px-2 py-1 rounded hover:bg-white/10 shrink-0", isController ? "hover:text-primary" : "opacity-50 cursor-not-allowed")}
               title="Rewind 10s (Left Arrow / J)"
             >
               <RotateCcw className="h-4 w-4" />
@@ -570,7 +570,7 @@ export function CustomVideoPlayer({
             <button 
               onClick={() => skip(10)} 
               disabled={!isController && isWatchParty}
-              className={cn("transition-colors focus:outline-none flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded hover:bg-white/10", isController ? "hover:text-primary" : "opacity-50 cursor-not-allowed")}
+              className={cn("transition-colors focus:outline-none flex items-center gap-1 text-xs font-semibold px-1.5 sm:px-2 py-1 rounded hover:bg-white/10 shrink-0", isController ? "hover:text-primary" : "opacity-50 cursor-not-allowed")}
               title="Forward 10s (Right Arrow / L)"
             >
               <RotateCw className="h-4 w-4" />
@@ -581,7 +581,7 @@ export function CustomVideoPlayer({
             {nextVideo && onNextVideo && (
               <button
                 onClick={onNextVideo}
-                className="transition-colors focus:outline-none hover:text-primary flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded hover:bg-white/10"
+                className="transition-colors focus:outline-none hover:text-primary flex items-center gap-1 text-xs font-semibold px-1.5 sm:px-2 py-1 rounded hover:bg-white/10 shrink-0"
                 title={`Next: ${nextVideo.title}`}
               >
                 <SkipForward className="h-4 w-4 fill-current" />
@@ -590,8 +590,8 @@ export function CustomVideoPlayer({
             )}
 
             {/* Volume Control */}
-            <div className="flex items-center gap-2 ml-1">
-              <button onClick={toggleMute} className="hover:text-primary transition-colors focus:outline-none" title="Mute/Unmute (M)">
+            <div className="flex items-center gap-1 sm:gap-2 shrink-0">
+              <button onClick={toggleMute} className="hover:text-primary transition-colors focus:outline-none p-1" title="Mute/Unmute (M)">
                 {isMuted || volume === 0 ? <VolumeX className="h-5 w-5" /> : <Volume2 className="h-5 w-5" />}
               </button>
               <input
@@ -601,21 +601,21 @@ export function CustomVideoPlayer({
                 step="0.05"
                 value={isMuted ? 0 : volume}
                 onChange={handleVolumeChange}
-                className="w-16 sm:w-20 h-1 accent-primary cursor-pointer rounded-lg bg-white/20"
+                className="w-12 sm:w-20 h-1 accent-primary cursor-pointer rounded-lg bg-white/20 hidden xs:block"
               />
             </div>
             
             {/* Playback Time Display */}
-            <div className="text-xs font-medium font-mono ml-2">
+            <div className="text-[10px] sm:text-xs font-medium font-mono shrink-0 whitespace-nowrap">
               {formatTime(currentTime)} / {formatTime(realDuration)}
             </div>
           </div>
           
-          <div className="flex items-center gap-4 relative">
+          <div className="flex items-center gap-1.5 sm:gap-3 relative shrink-0">
             {/* Settings Menu Button */}
             <button 
               onClick={(e) => { e.stopPropagation(); setShowSettings(!showSettings); }}
-              className="hover:text-primary transition-colors focus:outline-none" 
+              className="hover:text-primary transition-colors focus:outline-none p-1" 
               title="Settings"
             >
               <Settings className="h-5 w-5" />
@@ -624,7 +624,7 @@ export function CustomVideoPlayer({
             {/* Settings Popover */}
             {showSettings && (
               <div 
-                className="absolute bottom-10 right-0 sm:right-10 bg-surface/95 backdrop-blur-md border border-border rounded-xl shadow-2xl p-2 min-w-[180px] text-sm z-50 text-text animate-in fade-in zoom-in-95 duration-150"
+                className="absolute bottom-10 right-0 bg-surface/95 backdrop-blur-md border border-border rounded-xl shadow-2xl p-2 min-w-[170px] max-w-[calc(100vw-2rem)] text-sm z-50 text-text animate-in fade-in zoom-in-95 duration-150"
                 onClick={(e) => e.stopPropagation()}
               >
                 <div className="py-1">
@@ -669,15 +669,15 @@ export function CustomVideoPlayer({
             {isFullscreen && (
               <button 
                 onClick={toggleOrientation} 
-                className="hover:text-primary transition-colors focus:outline-none flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-white backdrop-blur-sm border border-white/20"
+                className="hover:text-primary transition-colors focus:outline-none flex items-center gap-1 text-[11px] font-semibold px-2 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-white backdrop-blur-sm border border-white/20 shrink-0"
                 title={`Switch to ${orientation === 'landscape' ? 'Portrait' : 'Landscape'} mode`}
               >
-                {orientation === 'portrait' ? <Smartphone className="h-4 w-4 text-primary" /> : <Monitor className="h-4 w-4 text-primary" />}
-                <span className="capitalize">{orientation}</span>
+                {orientation === 'portrait' ? <Smartphone className="h-3.5 w-3.5 text-primary" /> : <Monitor className="h-3.5 w-3.5 text-primary" />}
+                <span className="capitalize hidden sm:inline">{orientation}</span>
               </button>
             )}
 
-            <button onClick={toggleFullscreen} className="hover:text-primary transition-colors focus:outline-none" title="Fullscreen (F)">
+            <button onClick={toggleFullscreen} className="hover:text-primary transition-colors focus:outline-none p-1" title="Fullscreen (F)">
               {isFullscreen ? <Minimize className="h-5 w-5" /> : <Maximize className="h-5 w-5" />}
             </button>
           </div>
