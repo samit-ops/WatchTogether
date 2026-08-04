@@ -352,16 +352,16 @@ export function useWebRTC(socket, roomId, participants, currentSocketId) {
     setScreenStream(null);
     
     Object.entries(peersRef.current).forEach(([socketId, peer]) => {
-      const sender = screenSendersRef.current[socketId];
-      if (sender) {
+      const senders = screenSendersRef.current[socketId] || [];
+      senders.forEach(sender => {
         try {
           peer.removeTrack(sender);
         } catch (err) {
           console.error('[WebRTC] Error removing screen sender:', err);
         }
-        delete screenSendersRef.current[socketId];
-        makeOffer(socketId, peer);
-      }
+      });
+      delete screenSendersRef.current[socketId];
+      makeOffer(socketId, peer);
     });
     
     setScreenSharing(false);
@@ -390,12 +390,19 @@ export function useWebRTC(socket, roomId, participants, currentSocketId) {
       setScreenStream(stream);
       setScreenSharing(true);
       
+      const tracks = stream.getTracks();
       const screenVideoTrack = stream.getVideoTracks()[0];
-      screenVideoTrack.onended = stopScreenShare;
+      if (screenVideoTrack) {
+        screenVideoTrack.onended = stopScreenShare;
+      }
       
       Object.entries(peersRef.current).forEach(([socketId, peer]) => {
-        const sender = peer.addTrack(screenVideoTrack, stream);
-        screenSendersRef.current[socketId] = sender;
+        const addedSenders = [];
+        tracks.forEach(track => {
+          const sender = peer.addTrack(track, stream);
+          addedSenders.push(sender);
+        });
+        screenSendersRef.current[socketId] = addedSenders;
         makeOffer(socketId, peer);
       });
       
