@@ -47,6 +47,10 @@ const userSchema = new mongoose.Schema(
       enum: ['auto', 'light', 'dark'],
       default: 'auto',
     },
+    rememberMe: {
+      type: Boolean,
+      default: false,
+    },
     phoneNumber: {
       type: String,
       default: '',

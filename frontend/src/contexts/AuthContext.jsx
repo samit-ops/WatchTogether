@@ -32,10 +32,17 @@ export const AuthProvider = ({ children }) => {
     initAuth();
   }, []);
 
-  const login = async (email, password) => {
-    const data = await authService.login(email, password);
+  const login = async (email, password, rememberMe = false) => {
+    const data = await authService.login(email, password, rememberMe);
     if (data.token) {
       localStorage.setItem('token', data.token);
+      if (rememberMe) {
+        localStorage.setItem('rememberedEmail', email);
+        localStorage.setItem('rememberMe', 'true');
+      } else {
+        localStorage.removeItem('rememberedEmail');
+        localStorage.removeItem('rememberMe');
+      }
       setUser(data.user);
     }
     return data;

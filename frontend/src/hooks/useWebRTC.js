@@ -61,7 +61,7 @@ export function useWebRTC(socket, roomId, participants, currentSocketId) {
     };
     
     peer.ontrack = (e) => {
-      console.log(`[WebRTC] Track received from ${targetSocketId}:`, e.track.kind);
+      console.log(`[WebRTC] Track received from ${targetSocketId}:`, e.track.kind, e.streams);
 
       if (e.track.kind === 'video') {
         setRemoteStreams(prev => {
@@ -73,24 +73,24 @@ export function useWebRTC(socket, roomId, participants, currentSocketId) {
             setRemoteScreenStreams(screenPrev => {
               const sStream = screenPrev[targetSocketId] || new MediaStream();
               if (!sStream.getTracks().includes(e.track)) sStream.addTrack(e.track);
-              return { ...screenPrev, [targetSocketId]: sStream };
+              return { ...screenPrev, [targetSocketId]: new MediaStream(sStream.getTracks()) };
             });
             return prev;
           }
 
-          const stream = existingStream || new MediaStream();
-          if (!stream.getTracks().includes(e.track)) {
-            stream.addTrack(e.track);
+          const baseStream = existingStream || new MediaStream();
+          if (!baseStream.getTracks().includes(e.track)) {
+            baseStream.addTrack(e.track);
           }
-          return { ...prev, [targetSocketId]: stream };
+          return { ...prev, [targetSocketId]: new MediaStream(baseStream.getTracks()) };
         });
       } else {
         setRemoteStreams(prev => {
-          const stream = prev[targetSocketId] || new MediaStream();
-          if (!stream.getTracks().includes(e.track)) {
-            stream.addTrack(e.track);
+          const baseStream = prev[targetSocketId] || new MediaStream();
+          if (!baseStream.getTracks().includes(e.track)) {
+            baseStream.addTrack(e.track);
           }
-          return { ...prev, [targetSocketId]: stream };
+          return { ...prev, [targetSocketId]: new MediaStream(baseStream.getTracks()) };
         });
       }
     };
@@ -119,6 +119,9 @@ export function useWebRTC(socket, roomId, participants, currentSocketId) {
 
   const makeOffer = useCallback(async (targetSocketId, peer) => {
     try {
+      if (peer.signalingState !== 'stable') {
+        console.log(`[WebRTC] Signaling state for ${targetSocketId} is ${peer.signalingState}, waiting before offer.`);
+      }
       console.log(`[WebRTC] Initiating SDP offer to ${targetSocketId}`);
       const offer = await peer.createOffer();
       await peer.setLocalDescription(offer);
@@ -262,9 +265,12 @@ export function useWebRTC(socket, roomId, participants, currentSocketId) {
       }
       Object.entries(peersRef.current).forEach(([socketId, peer]) => {
         const sender = peer.getSenders().find(s => s.track && s.track.kind === 'audio');
-        if (sender) peer.removeTrack(sender);
+        if (sender) {
+          try { peer.removeTrack(sender); } catch (e) {}
+        }
         makeOffer(socketId, peer);
       });
+      setLocalStream(localStreamRef.current ? new MediaStream(localStreamRef.current.getTracks()) : null);
       setAudioEnabled(false);
       if (socket) socket.emit('toggle-mic', { roomId, isMuted: true });
       return false;
@@ -276,7 +282,7 @@ export function useWebRTC(socket, roomId, participants, currentSocketId) {
           localStreamRef.current = new MediaStream();
         }
         localStreamRef.current.addTrack(newTrack);
-        setLocalStream(localStreamRef.current);
+        setLocalStream(new MediaStream(localStreamRef.current.getTracks()));
         
         Object.entries(peersRef.current).forEach(([socketId, peer]) => {
           peer.addTrack(newTrack, localStreamRef.current);
@@ -303,9 +309,12 @@ export function useWebRTC(socket, roomId, participants, currentSocketId) {
       }
       Object.entries(peersRef.current).forEach(([socketId, peer]) => {
         const sender = peer.getSenders().find(s => s.track && s.track.kind === 'video' && s !== screenSendersRef.current[socketId]);
-        if (sender) peer.removeTrack(sender);
+        if (sender) {
+          try { peer.removeTrack(sender); } catch (e) {}
+        }
         makeOffer(socketId, peer);
       });
+      setLocalStream(localStreamRef.current ? new MediaStream(localStreamRef.current.getTracks()) : null);
       setVideoEnabled(false);
       if (socket) socket.emit('toggle-camera', { roomId, isCameraOff: true });
       return false;
@@ -317,7 +326,7 @@ export function useWebRTC(socket, roomId, participants, currentSocketId) {
           localStreamRef.current = new MediaStream();
         }
         localStreamRef.current.addTrack(newTrack);
-        setLocalStream(localStreamRef.current);
+        setLocalStream(new MediaStream(localStreamRef.current.getTracks()));
         
         Object.entries(peersRef.current).forEach(([socketId, peer]) => {
           peer.addTrack(newTrack, localStreamRef.current);

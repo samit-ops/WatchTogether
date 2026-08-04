@@ -95,7 +95,7 @@ exports.register = asyncHandler(async (req, res, next) => {
 // @route   POST /api/v1/auth/login
 // @access  Public
 exports.login = asyncHandler(async (req, res, next) => {
-  const { email, password } = req.body;
+  const { email, password, rememberMe } = req.body;
 
   if (!email || !password) {
     return next(new ApiError(httpStatus.BAD_REQUEST, 'Please provide an email and password'));
@@ -110,6 +110,9 @@ exports.login = asyncHandler(async (req, res, next) => {
   if (!isMatch) {
     return next(new ApiError(httpStatus.UNAUTHORIZED, 'Invalid credentials'));
   }
+
+  // Update rememberMe preference in DB
+  user.rememberMe = Boolean(rememberMe);
 
   const clientDevice = getClientDeviceInfo(req);
 
@@ -148,10 +151,10 @@ exports.login = asyncHandler(async (req, res, next) => {
   const deviceIndex = user.knownDevices.findIndex(d => d.deviceId === clientDevice.deviceId);
   if (deviceIndex > -1) {
     user.knownDevices[deviceIndex].lastUsedAt = new Date();
-    await user.save();
   }
+  await user.save();
 
-  const token = generateToken(user._id);
+  const token = generateToken(user._id, rememberMe ? '30d' : '7d');
 
   res.status(httpStatus.OK).json(
     new ApiResponse(httpStatus.OK, {
@@ -163,7 +166,8 @@ exports.login = asyncHandler(async (req, res, next) => {
         role: user.role,
         subscription: user.subscription,
         avatar: user.avatar,
-        themePreference: user.themePreference
+        themePreference: user.themePreference,
+        rememberMe: user.rememberMe
       },
       token,
     }, 'Login successful')

@@ -8,8 +8,9 @@ import { ForgotPasswordModal } from '@/components/auth/ForgotPasswordModal';
 import { toast } from '@/utils/toast';
 
 export default function Login() {
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState(() => localStorage.getItem('rememberedEmail') || '');
   const [password, setPassword] = useState('');
+  const [rememberMe, setRememberMe] = useState(() => localStorage.getItem('rememberMe') === 'true');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -34,7 +35,7 @@ export default function Login() {
 
     setLoading(true);
     try {
-      const data = await login(email, password);
+      const data = await login(email, password, rememberMe);
 
       // Check if new device/location OTP verification is required
       if (data?.requireOtp) {
@@ -135,9 +136,11 @@ export default function Login() {
                 id="remember-me"
                 name="remember-me"
                 type="checkbox"
-                className="h-4 w-4 rounded border-border bg-background text-primary focus:ring-primary focus:ring-offset-background"
+                checked={rememberMe}
+                onChange={(e) => setRememberMe(e.target.checked)}
+                className="h-4 w-4 rounded border-border bg-background text-primary focus:ring-primary focus:ring-offset-background cursor-pointer"
               />
-              <label htmlFor="remember-me" className="ml-2 block text-sm text-muted">
+              <label htmlFor="remember-me" className="ml-2 block text-sm text-muted cursor-pointer">
                 Remember me
               </label>
             </div>

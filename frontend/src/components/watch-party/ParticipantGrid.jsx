@@ -40,21 +40,43 @@ export function ParticipantGrid({ localStream, remoteStreams, participants, curr
 
 function ParticipantTile({ participant, stream, isLocal }) {
   const videoRef = useRef(null);
+  const audioRef = useRef(null);
 
   const videoTrack = stream && stream.getVideoTracks().find(t => t.readyState === 'live');
   const hasVideo = Boolean(videoTrack && !participant.isCameraOff);
   const isMuted = participant.isMuted || (!stream || stream.getAudioTracks().length === 0);
 
+  // Bind video stream and trigger play
   useEffect(() => {
     if (hasVideo && videoRef.current && stream) {
       if (videoRef.current.srcObject !== stream) {
         videoRef.current.srcObject = stream;
       }
+      videoRef.current.play().catch(err => {
+        console.log('[WebRTC] Video play call error:', err);
+      });
     }
   }, [hasVideo, stream]);
 
+  // Always bind and play remote audio stream
+  useEffect(() => {
+    if (!isLocal && audioRef.current && stream) {
+      if (audioRef.current.srcObject !== stream) {
+        audioRef.current.srcObject = stream;
+      }
+      audioRef.current.play().catch(err => {
+        console.log('[WebRTC] Remote audio play call error:', err);
+      });
+    }
+  }, [isLocal, stream]);
+
   return (
     <div className="relative aspect-video rounded-xl bg-surface overflow-hidden border border-border flex items-center justify-center">
+      {/* Remote Audio Player - Always active for remote participants */}
+      {!isLocal && stream && (
+        <audio ref={audioRef} autoPlay playsInline className="hidden" />
+      )}
+
       {hasVideo ? (
         <video
           ref={videoRef}
