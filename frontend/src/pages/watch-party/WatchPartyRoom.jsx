@@ -283,10 +283,16 @@ export default function WatchPartyRoom() {
             </div>
           ) : (
             <video 
-              ref={screenShareVideoRef} 
+              ref={(node) => {
+                screenShareVideoRef.current = node;
+                if (node && currentScreenStream && node.srcObject !== currentScreenStream) {
+                  node.srcObject = currentScreenStream;
+                }
+              }} 
               autoPlay 
               playsInline 
-              className={cn("max-w-full max-h-full object-contain rounded-xl shadow-2xl", isFullscreen && screenOrientation === 'portrait' && "max-h-[90vh]")}
+              muted={false}
+              className={cn("w-full h-full max-w-full max-h-full object-contain rounded-xl shadow-2xl", isFullscreen && screenOrientation === 'portrait' && "max-h-[90vh]")}
             />
           )}
         </div>

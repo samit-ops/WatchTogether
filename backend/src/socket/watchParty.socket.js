@@ -302,11 +302,13 @@ module.exports = (io, socket) => {
 
   socket.on('screen-share-start', async ({ roomId }) => {
     try {
-      const room = await Room.findOne({ roomId, status: 'active' });
+      const room = await Room.findOne({ roomId });
       if (!room) return;
-      const participant = room.participants.find(p => p.socketId === socket.id);
+      const userId = (socket.user?._id || socket.user?.id || '').toString();
+      const participant = room.participants.find(p => p.socketId === socket.id || (p.user?._id || p.user).toString() === userId);
       if (participant) {
         participant.isScreenSharing = true;
+        participant.socketId = socket.id;
         await room.save();
         await broadcastParticipants(io, room);
         io.to(roomId).emit('screen-share-started', { socketId: socket.id, userId: socket.user._id });
@@ -318,9 +320,10 @@ module.exports = (io, socket) => {
 
   socket.on('screen-share-stop', async ({ roomId }) => {
     try {
-      const room = await Room.findOne({ roomId, status: 'active' });
+      const room = await Room.findOne({ roomId });
       if (!room) return;
-      const participant = room.participants.find(p => p.socketId === socket.id);
+      const userId = (socket.user?._id || socket.user?.id || '').toString();
+      const participant = room.participants.find(p => p.socketId === socket.id || (p.user?._id || p.user).toString() === userId);
       if (participant) {
         participant.isScreenSharing = false;
         await room.save();
