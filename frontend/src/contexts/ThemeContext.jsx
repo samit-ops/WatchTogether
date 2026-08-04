@@ -7,10 +7,13 @@ const ThemeContext = createContext(null);
 export function getISTHour() {
   try {
     const now = new Date();
-    const formatter = new Intl.DateTimeFormat([], { timeZone: 'Asia/Kolkata', hour: 'numeric', hour12: false });
+    const formatter = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Kolkata', hour: 'numeric', hour12: false });
     const parts = formatter.formatToParts(now);
     for (const part of parts) {
-      if (part.type === 'hour') return parseInt(part.value, 10);
+      if (part.type === 'hour') {
+        const val = parseInt(part.value, 10);
+        return val === 24 ? 0 : val;
+      }
     }
   } catch (e) {
     console.error('Error calculating IST time:', e);
