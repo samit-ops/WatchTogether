@@ -14,6 +14,17 @@ export function ParticipantGrid({ localStream, remoteStreams, participants, curr
     }
   });
 
+  // Fallback to local user if participants list is temporarily empty on page refresh
+  if (uniqueParticipants.length === 0 && currentUserId) {
+    uniqueParticipants.push({
+      user: { _id: currentUserId, name: 'You' },
+      socketId: 'local',
+      role: 'guest',
+      isMuted: true,
+      isCameraOff: true
+    });
+  }
+
   const total = uniqueParticipants.length;
   const currentId = String(currentUserId || '');
 

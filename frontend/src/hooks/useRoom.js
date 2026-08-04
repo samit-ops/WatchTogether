@@ -31,6 +31,11 @@ export function useRoom(socket, roomId) {
         if (mounted) {
           setRoom(roomData);
           if (roomData.host) setHost(roomData.host);
+          if (roomData.participants) setParticipants(roomData.participants);
+          if (roomData.isLocked !== undefined) setIsLocked(roomData.isLocked);
+          if (roomData.isRecording !== undefined) setIsRecording(roomData.isRecording);
+          if (roomData.playbackPermission !== undefined) setPlaybackPermission(roomData.playbackPermission);
+          if (roomData.meetingPermissions !== undefined) setMeetingPermissions(roomData.meetingPermissions);
           setLoading(false);
         }
       } catch (err) {

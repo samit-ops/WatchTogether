@@ -38,6 +38,7 @@ exports.createRoom = asyncHandler(async (req, res) => {
 exports.getRoom = asyncHandler(async (req, res) => {
   const room = await Room.findOne({ roomId: req.params.roomId, status: 'active' })
     .populate('host', 'name avatar')
+    .populate('participants.user', 'name avatar')
     .populate('video');
 
   if (!room) {

@@ -370,13 +370,22 @@ export function useWebRTC(socket, roomId, participants, currentSocketId) {
 
   const startScreenShare = async () => {
     try {
-      toast.info('Tip: Select a specific Window or Chrome Tab to share without monitor loops!');
-      const stream = await navigator.mediaDevices.getDisplayMedia({ 
-        video: {
-          cursor: 'always'
-        }, 
-        audio: true 
-      });
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
+        toast.error('Screen sharing is not supported on this browser/device');
+        return false;
+      }
+
+      let stream;
+      try {
+        stream = await navigator.mediaDevices.getDisplayMedia({ 
+          video: true, 
+          audio: true 
+        });
+      } catch (audioErr) {
+        console.log('[WebRTC] Mobile/Tablet fallback to video-only getDisplayMedia');
+        stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+      }
+
       screenStreamRef.current = stream;
       setScreenStream(stream);
       setScreenSharing(true);
@@ -394,7 +403,7 @@ export function useWebRTC(socket, roomId, participants, currentSocketId) {
       return true;
     } catch (err) {
       console.error('[WebRTC] Error sharing screen', err);
-      toast.error('Screen sharing was denied or failed');
+      toast.error('Screen sharing was denied or not supported on this device');
       return false;
     }
   };
