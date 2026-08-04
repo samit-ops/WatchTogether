@@ -458,7 +458,7 @@ exports.updateThemePreference = asyncHandler(async (req, res, next) => {
   const user = await User.findByIdAndUpdate(
     req.user._id,
     { themePreference },
-    { new: true }
+    { returnDocument: 'after' }
   );
 
   res.status(httpStatus.OK).json(

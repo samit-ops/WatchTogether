@@ -167,7 +167,7 @@ exports.verifyPayment = asyncHandler(async (req, res) => {
       subscription: plan,
       subscriptionExpiresAt: expiresAtDate
     },
-    { new: true }
+    { returnDocument: 'after' }
   );
 
   // Send Confirmation Email with Unlocked Features (Async background call)

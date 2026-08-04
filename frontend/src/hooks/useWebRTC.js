@@ -4,7 +4,11 @@ import { toast } from '@/utils/toast';
 const ICE_SERVERS = {
   iceServers: [
     { urls: 'stun:stun.l.google.com:19302' },
-    { urls: 'stun:stun1.l.google.com:19302' }
+    { urls: 'stun:stun1.l.google.com:19302' },
+    { urls: 'stun:stun2.l.google.com:19302' },
+    { urls: 'stun:stun3.l.google.com:19302' },
+    { urls: 'stun:stun4.l.google.com:19302' },
+    { urls: 'stun:global.stun.twilio.com:3478' }
   ]
 };
 
@@ -123,7 +127,10 @@ export function useWebRTC(socket, roomId, participants, currentSocketId) {
     
     peer.onconnectionstatechange = () => {
       console.log(`[WebRTC] Connection state for ${targetSocketId}: ${peer.connectionState}`);
-      if (peer.connectionState === 'failed' || peer.connectionState === 'closed') {
+      if (peer.connectionState === 'failed') {
+        console.log(`[WebRTC] Connection failed with ${targetSocketId}, attempting ICE restart...`);
+        makeOffer(targetSocketId, peer, { iceRestart: true });
+      } else if (peer.connectionState === 'closed') {
         peer.close();
         delete peersRef.current[targetSocketId];
         delete screenSendersRef.current[targetSocketId];
@@ -143,13 +150,14 @@ export function useWebRTC(socket, roomId, participants, currentSocketId) {
     return peer;
   }, [socket, roomId]);
 
-  const makeOffer = useCallback(async (targetSocketId, peer) => {
+  const makeOffer = useCallback(async (targetSocketId, peer, options = {}) => {
     try {
-      if (peer.signalingState !== 'stable') {
-        console.log(`[WebRTC] Signaling state for ${targetSocketId} is ${peer.signalingState}, waiting before offer.`);
+      if (peer.signalingState !== 'stable' && !options.iceRestart) {
+        console.log(`[WebRTC] Signaling state for ${targetSocketId} is ${peer.signalingState}, skipping offer.`);
+        return;
       }
       console.log(`[WebRTC] Initiating SDP offer to ${targetSocketId}`);
-      const offer = await peer.createOffer();
+      const offer = await peer.createOffer(options);
       await peer.setLocalDescription(offer);
       if (socket) {
         socket.emit('offer', { roomId, to: targetSocketId, sdp: peer.localDescription });
@@ -207,6 +215,17 @@ export function useWebRTC(socket, roomId, participants, currentSocketId) {
       }
       
       try {
+        const isOfferCollision = peer.signalingState !== 'stable';
+        if (isOfferCollision) {
+          if (currentSocketId < from) {
+            console.log(`[WebRTC] Offer collision detected with ${from}, rolling back local offer`);
+            await peer.setLocalDescription({ type: 'rollback' });
+          } else {
+            console.log(`[WebRTC] Offer collision detected with ${from}, impolite peer ignoring offer`);
+            return;
+          }
+        }
+
         await peer.setRemoteDescription(new RTCSessionDescription(sdp));
         const answer = await peer.createAnswer();
         await peer.setLocalDescription(answer);

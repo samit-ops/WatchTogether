@@ -70,7 +70,7 @@ exports.incrementViews = asyncHandler(async (req, res, next) => {
   const video = await Video.findByIdAndUpdate(
     req.params.id,
     { $inc: { views: 1 } },
-    { new: true, runValidators: false }
+    { returnDocument: 'after', runValidators: false }
   );
 
   if (!video) {
@@ -185,7 +185,7 @@ exports.updateVideo = asyncHandler(async (req, res, next) => {
   Object.keys(updateData).forEach(key => updateData[key] === undefined && delete updateData[key]);
 
   video = await Video.findByIdAndUpdate(req.params.id, updateData, {
-    new: true,
+    returnDocument: 'after',
     runValidators: true,
   });
 
