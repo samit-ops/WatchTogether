@@ -39,10 +39,40 @@ export default function WatchPartyRoom() {
   const [activeTab, setActiveTab] = useState('grid'); // 'grid' | 'chat' | 'participants'
   const [showSettings, setShowSettings] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  const activeTabRef = useRef(activeTab);
+  activeTabRef.current = activeTab;
+
   const settingsRef = useRef(null);
   const screenShareVideoRef = useRef(null);
   const screenContainerRef = useRef(null);
+
+  // Unread Chat Message Counter Badge
+  useEffect(() => {
+    if (!socket) return;
+    const handleReceiveMessage = () => {
+      if (activeTabRef.current !== 'chat') {
+        setUnreadCount(prev => prev + 1);
+      }
+    };
+    socket.on('receive-message', handleReceiveMessage);
+    return () => socket.off('receive-message', handleReceiveMessage);
+  }, [socket]);
+
+  // Native Browser / System Picture-in-Picture on App Exit / Minimization / Visibility Change
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        const videoEl = document.querySelector('video');
+        if (videoEl && document.pictureInPictureEnabled && !document.pictureInPictureElement) {
+          videoEl.requestPictureInPicture().catch(e => console.log('[System PiP]', e));
+        }
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, []);
 
   // Mobile Hardware / Browser Back Button Interception -> Picture in Picture Mode
   useEffect(() => {
@@ -182,7 +212,11 @@ export default function WatchPartyRoom() {
   };
 
   const handleToggleTab = (tab) => {
-    setActiveTab(prev => prev === tab ? 'grid' : tab);
+    setActiveTab(prev => {
+      const next = prev === tab ? 'grid' : tab;
+      if (next === 'chat') setUnreadCount(0);
+      return next;
+    });
   };
 
   const renderVideoArea = () => {
@@ -497,6 +531,7 @@ export default function WatchPartyRoom() {
         isHost={isHost}
         roomType={roomType}
         activeTab={activeTab}
+        unreadCount={unreadCount}
         onToggleTab={handleToggleTab}
         onToggleAudio={handleToggleAudio}
         onToggleVideo={handleToggleVideo}

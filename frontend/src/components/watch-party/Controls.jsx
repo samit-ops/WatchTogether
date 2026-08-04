@@ -7,7 +7,7 @@ import { RecordingButton } from './RecordingButton';
 
 export function Controls({
   audioEnabled, videoEnabled, screenSharing, isRecording,
-  isHost, roomType, activeTab, onToggleTab,
+  isHost, roomType, activeTab, unreadCount = 0, onToggleTab,
   onToggleAudio, onToggleVideo, onToggleScreen, onStartRecording, onStopRecording, onLeave,
   micDisabled, cameraDisabled, screenDisabled
 }) {
@@ -67,7 +67,7 @@ export function Controls({
         />
       )}
 
-      {/* Chat toggle button for quick access on mobile/desktop */}
+      {/* Chat toggle button with unread message badge */}
       <button
         onClick={() => onToggleTab('chat')}
         className={cn(
@@ -77,6 +77,11 @@ export function Controls({
         title="Toggle Chat"
       >
         <MessageSquare className="w-5 h-5" />
+        {unreadCount > 0 && (
+          <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-extrabold rounded-full h-5 min-w-[20px] px-1 flex items-center justify-center border-2 border-surface animate-bounce shadow-lg">
+            {unreadCount > 10 ? '10+' : unreadCount}
+          </span>
+        )}
       </button>
 
       {/* Participants toggle button */}
