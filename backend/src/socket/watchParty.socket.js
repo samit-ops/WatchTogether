@@ -5,28 +5,24 @@ const disconnectTimers = {};
 
 const broadcastParticipants = async (io, room) => {
   try {
-    const unique = [];
-    const seen = new Set();
-    for (const p of room.participants) {
-      const uId = (p.user?._id || p.user || '').toString();
-      if (uId && !seen.has(uId)) {
-        seen.add(uId);
-        unique.push(p);
-      }
-    }
-    room.participants = unique;
+    const targetRoomId = typeof room === 'string' ? room : (room.roomId || room);
+    const freshRoom = await Room.findOne({ roomId: targetRoomId })
+      .populate('participants.user', 'name avatar')
+      .populate('host', 'name avatar');
 
-    await room.populate('participants.user', 'name avatar');
-    await room.populate('host', 'name avatar');
+    if (!freshRoom) return;
 
-    io.to(room.roomId).emit('participants-updated', {
-      participants: room.participants,
-      host: room.host,
-      playbackPermission: room.playbackPermission,
-      meetingPermissions: room.meetingPermissions,
-      isLocked: room.isLocked,
-      isRecording: room.isRecording,
-      type: room.type
+    // Filter out invalid/null user entries
+    freshRoom.participants = freshRoom.participants.filter(p => p.user);
+
+    io.to(targetRoomId).emit('participants-updated', {
+      participants: freshRoom.participants,
+      host: freshRoom.host,
+      playbackPermission: freshRoom.playbackPermission,
+      meetingPermissions: freshRoom.meetingPermissions,
+      isLocked: freshRoom.isLocked,
+      isRecording: freshRoom.isRecording,
+      type: freshRoom.type
     });
   } catch (error) {
     logger.error(`Error broadcasting participants: ${error.message}`);
@@ -35,7 +31,7 @@ const broadcastParticipants = async (io, room) => {
 
 const handleParticipantLeave = async (io, socket, roomId) => {
   try {
-    const room = await Room.findOne({ roomId, status: 'active' });
+    const room = await Room.findOne({ roomId });
     if (!room) return;
 
     const participantIndex = room.participants.findIndex(p => 
@@ -72,9 +68,13 @@ const handleParticipantLeave = async (io, socket, roomId) => {
 module.exports = (io, socket) => {
   socket.on('join-room', async ({ roomId }) => {
     try {
-      const room = await Room.findOne({ roomId, status: 'active' });
+      let room = await Room.findOne({ roomId });
       if (!room) {
-        return socket.emit('error', { message: 'Room not found or inactive' });
+        return socket.emit('error', { message: 'Room not found' });
+      }
+
+      if (room.status === 'ended') {
+        room.status = 'active';
       }
 
       const userId = socket.user._id.toString();
@@ -94,8 +94,11 @@ module.exports = (io, socket) => {
       socket.join(roomId);
       socket.currentRoom = roomId;
 
-      // Update or add participant entry on page refresh
-      const existingParticipant = room.participants.find(p => (p.user?._id || p.user).toString() === userId);
+      // Update or add participant entry on page refresh / joining from device
+      const existingParticipant = room.participants.find(p => 
+        p.socketId === socket.id || (p.user?._id || p.user).toString() === userId
+      );
+
       if (existingParticipant) {
         existingParticipant.socketId = socket.id;
         if (isHost) existingParticipant.role = 'host';

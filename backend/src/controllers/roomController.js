@@ -36,13 +36,19 @@ exports.createRoom = asyncHandler(async (req, res) => {
 });
 
 exports.getRoom = asyncHandler(async (req, res) => {
-  const room = await Room.findOne({ roomId: req.params.roomId, status: 'active' })
+  let room = await Room.findOne({ roomId: req.params.roomId })
     .populate('host', 'name avatar')
     .populate('participants.user', 'name avatar')
     .populate('video');
 
   if (!room) {
-    throw new ApiError(httpStatus.NOT_FOUND, 'Room not found or ended');
+    throw new ApiError(httpStatus.NOT_FOUND, 'Room not found');
+  }
+
+  // Reactivate room if user is reconnecting or refreshing page
+  if (room.status === 'ended') {
+    room.status = 'active';
+    await room.save();
   }
 
   res.status(httpStatus.OK).json(
