@@ -128,14 +128,16 @@ export default function WatchPartyRoom() {
     };
   }, [socket]);
 
-  const isLocalScreenShare = activeScreenShare === socket?.id;
-  const currentScreenStream = isLocalScreenShare ? screenStream : (activeScreenShare ? remoteScreenStreams[activeScreenShare] : null);
+  const screenSharerParticipant = participants.find(p => p.isScreenSharing);
+  const effectiveScreenShareId = activeScreenShare || screenSharerParticipant?.socketId;
+  const isLocalScreenShare = screenSharing || (effectiveScreenShareId && effectiveScreenShareId === socket?.id);
+  const currentScreenStream = isLocalScreenShare ? screenStream : (effectiveScreenShareId ? remoteScreenStreams[effectiveScreenShareId] : null);
 
   useEffect(() => {
-    if (activeScreenShare && screenShareVideoRef.current && currentScreenStream) {
+    if (effectiveScreenShareId && !isLocalScreenShare && screenShareVideoRef.current && currentScreenStream) {
       screenShareVideoRef.current.srcObject = currentScreenStream;
     }
-  }, [activeScreenShare, currentScreenStream]);
+  }, [effectiveScreenShareId, isLocalScreenShare, currentScreenStream]);
 
   useEffect(() => {
     const handleClickOutside = (e) => {
@@ -234,7 +236,7 @@ export default function WatchPartyRoom() {
   };
 
   const renderVideoArea = () => {
-    if (activeScreenShare) {
+    if (effectiveScreenShareId) {
       return (
         <div 
           ref={screenContainerRef} 
@@ -263,7 +265,7 @@ export default function WatchPartyRoom() {
             </button>
           </div>
 
-          {activeScreenShare === socket?.id ? (
+          {isLocalScreenShare ? (
             <div className="flex flex-col items-center justify-center text-center max-w-lg bg-surface border border-border p-6 rounded-3xl shadow-2xl">
               <div className="w-16 h-16 rounded-full bg-blue-500/20 text-blue-500 flex items-center justify-center mb-4 animate-pulse">
                 <MonitorUp className="w-8 h-8" />

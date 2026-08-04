@@ -23,6 +23,29 @@ export function useWebRTC(socket, roomId, participants, currentSocketId) {
   const [screenSharing, setScreenSharing] = useState(false);
   const [screenStream, setScreenStream] = useState(null);
 
+  const activeScreenSharingSocketIdRef = useRef(null);
+
+  useEffect(() => {
+    if (!socket) return;
+
+    const handleScreenStarted = ({ socketId }) => {
+      activeScreenSharingSocketIdRef.current = socketId;
+    };
+    const handleScreenStopped = ({ socketId }) => {
+      if (activeScreenSharingSocketIdRef.current === socketId) {
+        activeScreenSharingSocketIdRef.current = null;
+      }
+    };
+
+    socket.on('screen-share-started', handleScreenStarted);
+    socket.on('screen-share-stopped', handleScreenStopped);
+
+    return () => {
+      socket.off('screen-share-started', handleScreenStarted);
+      socket.off('screen-share-stopped', handleScreenStopped);
+    };
+  }, [socket]);
+
   const drainPendingCandidates = useCallback((socketId, peer) => {
     const queue = pendingCandidatesRef.current[socketId] || [];
     while (queue.length) {
@@ -68,8 +91,9 @@ export function useWebRTC(socket, roomId, participants, currentSocketId) {
         const existingStream = peersRef.current[targetSocketId]?.remoteCameraStream;
         const isSecondTrack = existingStream && existingStream.getVideoTracks().length > 0 && existingStream.getVideoTracks()[0].id !== e.track.id;
         const isScreenLabel = trackLabel.includes('screen') || trackLabel.includes('display') || trackLabel.includes('window') || trackLabel.includes('tab');
+        const isFromScreenSharer = activeScreenSharingSocketIdRef.current === targetSocketId || (participants && participants.some(p => p.socketId === targetSocketId && p.isScreenSharing));
 
-        if (isScreenLabel || isSecondTrack) {
+        if (isFromScreenSharer || isScreenLabel || isSecondTrack) {
           console.log(`[WebRTC] Assigning screen share video track from ${targetSocketId}`);
           setRemoteScreenStreams(screenPrev => {
             return { ...screenPrev, [targetSocketId]: new MediaStream([e.track]) };
