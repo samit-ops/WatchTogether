@@ -25,7 +25,7 @@ export function MainLayout() {
 
       <Navbar />
       <main className="flex-1 container mx-auto px-4 py-8 w-full max-w-7xl">
-        <AnimatePresence mode="wait">
+        <AnimatePresence>
           <PageTransition key={location.pathname}>
             <Outlet />
           </PageTransition>

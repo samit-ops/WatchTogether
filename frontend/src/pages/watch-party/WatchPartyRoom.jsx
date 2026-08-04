@@ -287,6 +287,10 @@ export default function WatchPartyRoom() {
                 screenShareVideoRef.current = node;
                 if (node && currentScreenStream && node.srcObject !== currentScreenStream) {
                   node.srcObject = currentScreenStream;
+                  node.play().catch(() => {
+                    node.muted = true;
+                    node.play().catch(e => console.error('[WebRTC] Video play error:', e));
+                  });
                 }
               }} 
               autoPlay 
