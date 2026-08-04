@@ -13,6 +13,14 @@ exports.getVideos = asyncHandler(async (req, res, next) => {
   if (req.query.category && req.query.category !== 'All') {
     query.category = req.query.category;
   }
+  if (req.query.search && req.query.search.trim()) {
+    const searchRegex = new RegExp(req.query.search.trim(), 'i');
+    query.$or = [
+      { title: searchRegex },
+      { description: searchRegex },
+      { tags: searchRegex }
+    ];
+  }
   const videos = await Video.find(query)
     .populate('uploadedBy', 'name avatar')
     .sort('-createdAt');

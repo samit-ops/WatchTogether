@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import videoService from '@/services/video.service';
 import { VideoCard } from '@/components/video/VideoCard';
@@ -7,19 +7,23 @@ import { ParticleCanvas } from '@/components/ui/ParticleCanvas';
 import { MagneticButton } from '@/components/ui/MagneticButton';
 import { TiltCard } from '@/components/ui/TiltCard';
 import { FadeIn, ScrollReveal, StaggerContainer, StaggerItem } from '@/components/motion';
-import { Play, Sparkles, TrendingUp, Users, Globe, Download, ShieldCheck, Video, Zap } from 'lucide-react';
+import { Play, Sparkles, TrendingUp, Users, Globe, Download, ShieldCheck, Video, Zap, Search, X } from 'lucide-react';
 
 export default function Home() {
   const [videos, setVideos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const searchQuery = searchParams.get('search') || '';
 
   useEffect(() => {
     const fetchVideos = async () => {
+      setLoading(true);
+      setError('');
       try {
-        const data = await videoService.getAllVideos();
-        setVideos(data.videos);
+        const data = await videoService.getAllVideos(searchQuery);
+        setVideos(data.videos || []);
       } catch (err) {
         setError('Failed to load videos. Please try again later.');
       } finally {
@@ -27,7 +31,7 @@ export default function Home() {
       }
     };
     fetchVideos();
-  }, []);
+  }, [searchQuery]);
 
   if (loading) {
     return (
@@ -190,6 +194,34 @@ export default function Home() {
       {/* ═══ Content Sections ═══ */}
       <div className="container mx-auto px-4 max-w-7xl mt-16 space-y-24">
         
+        {/* Search Results Banner if search query is active */}
+        {searchQuery && (
+          <section id="search-section">
+            <div className="flex items-center justify-between gap-4 mb-6 glass-card p-4 rounded-2xl border border-primary/30 shadow-lg">
+              <div className="flex items-center gap-3">
+                <Search className="h-5 w-5 text-primary" />
+                <h2 className="text-xl font-bold text-text">
+                  Search Results for <span className="text-primary">"{searchQuery}"</span> ({videos.length} {videos.length === 1 ? 'video' : 'videos'} found)
+                </h2>
+              </div>
+              <button
+                onClick={() => setSearchParams({})}
+                className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-muted hover:text-text bg-surface hover:bg-surface-light rounded-xl border border-border transition-colors cursor-pointer"
+              >
+                <X className="h-4 w-4" />
+                Clear Search
+              </button>
+            </div>
+            <StaggerContainer className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+              {videos.map((video) => (
+                <StaggerItem key={video._id}>
+                  <VideoCard video={video} />
+                </StaggerItem>
+              ))}
+            </StaggerContainer>
+          </section>
+        )}
+
         {/* Gradient divider */}
         <div className="gradient-divider" />
         

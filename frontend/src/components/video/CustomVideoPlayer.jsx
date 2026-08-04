@@ -42,7 +42,7 @@ export function CustomVideoPlayer({
   const remoteSyncingRef = useRef(false);
   const { socket } = useSocket();
 
-  const isController = playbackPermission === 'everyone' ? true : isHost;
+  const isController = !isWatchParty ? true : (playbackPermission === 'everyone' ? true : isHost);
 
   // Socket synchronization for Watch Party mode
   useEffect(() => {

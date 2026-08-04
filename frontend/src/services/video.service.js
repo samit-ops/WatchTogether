@@ -1,8 +1,12 @@
 import api from './api';
 
 const videoService = {
-  getAllVideos: async () => {
-    const response = await api.get('/v1/videos');
+  getAllVideos: async (search = '', category = '') => {
+    const params = new URLSearchParams();
+    if (search) params.append('search', search);
+    if (category && category !== 'All') params.append('category', category);
+    const queryString = params.toString() ? `?${params.toString()}` : '';
+    const response = await api.get(`/v1/videos${queryString}`);
     return response.data;
   },
   
