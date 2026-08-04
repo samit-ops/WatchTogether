@@ -1,7 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { 
   Play, Pause, Volume2, VolumeX, Maximize, Minimize, 
-  Settings, RotateCcw, RotateCw, SkipForward, X, RefreshCw
+  Settings, RotateCcw, RotateCw, SkipForward, X, RefreshCw,
+  Smartphone, Monitor
 } from 'lucide-react';
 import { cn } from '@/utils/cn';
 import { Loader } from '@/components/ui/Loader';
@@ -21,6 +22,7 @@ export function CustomVideoPlayer({
   const [volume, setVolume] = useState(1);
   const [isMuted, setIsMuted] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [orientation, setOrientation] = useState('landscape'); // 'landscape' | 'portrait'
   const [duration, setDuration] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
   const [showControls, setShowControls] = useState(true);
@@ -221,6 +223,19 @@ export function CustomVideoPlayer({
     }
   };
 
+  const toggleOrientation = async () => {
+    const nextMode = orientation === 'landscape' ? 'portrait' : 'landscape';
+    setOrientation(nextMode);
+
+    if (window.screen?.orientation?.lock) {
+      try {
+        await window.screen.orientation.lock(nextMode);
+      } catch (err) {
+        console.log("[VideoPlayer] Orientation lock unsupported/restricted:", err);
+      }
+    }
+  };
+
   useEffect(() => {
     const handleFullscreenChange = () => {
       setIsFullscreen(!!document.fullscreenElement);
@@ -392,7 +407,12 @@ export function CustomVideoPlayer({
   return (
     <div 
       ref={containerRef}
-      className="relative group w-full aspect-video bg-black rounded-2xl overflow-hidden shadow-2xl flex items-center justify-center select-none"
+      className={cn(
+        "relative group w-full bg-black rounded-2xl overflow-hidden shadow-2xl flex items-center justify-center select-none transition-all",
+        isFullscreen 
+          ? (orientation === 'portrait' ? "h-full max-w-[540px] aspect-[9/16] mx-auto border-x border-border/40" : "w-full h-full aspect-video")
+          : "aspect-video"
+      )}
       onMouseMove={handleMouseMove}
       onMouseLeave={() => isPlaying && setShowControls(false)}
       onClick={handleContainerClick}
@@ -645,7 +665,18 @@ export function CustomVideoPlayer({
               </div>
             )}
 
-            {/* Fullscreen Toggle Button */}
+            {/* Fullscreen & Orientation Toggle Controls */}
+            {isFullscreen && (
+              <button 
+                onClick={toggleOrientation} 
+                className="hover:text-primary transition-colors focus:outline-none flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-white backdrop-blur-sm border border-white/20"
+                title={`Switch to ${orientation === 'landscape' ? 'Portrait' : 'Landscape'} mode`}
+              >
+                {orientation === 'portrait' ? <Smartphone className="h-4 w-4 text-primary" /> : <Monitor className="h-4 w-4 text-primary" />}
+                <span className="capitalize">{orientation}</span>
+              </button>
+            )}
+
             <button onClick={toggleFullscreen} className="hover:text-primary transition-colors focus:outline-none" title="Fullscreen (F)">
               {isFullscreen ? <Minimize className="h-5 w-5" /> : <Maximize className="h-5 w-5" />}
             </button>

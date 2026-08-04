@@ -15,7 +15,7 @@ import { Controls } from '@/components/watch-party/Controls';
 import { InviteModal } from '@/components/watch-party/InviteModal';
 import { LeaveConfirmModal } from '@/components/watch-party/LeaveConfirmModal';
 import { MiniPipWindow } from '@/components/watch-party/MiniPipWindow';
-import { Copy, Users, Activity, Link2, Settings, Shield, Lock, Unlock, MonitorUp, Maximize2, Minimize2, MessageSquare, ArrowLeft } from 'lucide-react';
+import { Copy, Users, Activity, Link2, Settings, Shield, Lock, Unlock, MonitorUp, Maximize2, Minimize2, MessageSquare, ArrowLeft, Smartphone, Monitor } from 'lucide-react';
 import { cn } from '@/utils/cn';
 
 export default function WatchPartyRoom() {
@@ -39,6 +39,20 @@ export default function WatchPartyRoom() {
   const [activeTab, setActiveTab] = useState('grid'); // 'grid' | 'chat' | 'participants'
   const [showSettings, setShowSettings] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [screenOrientation, setScreenOrientation] = useState('landscape');
+
+  const toggleScreenOrientation = async () => {
+    const nextMode = screenOrientation === 'landscape' ? 'portrait' : 'landscape';
+    setScreenOrientation(nextMode);
+
+    if (window.screen?.orientation?.lock) {
+      try {
+        await window.screen.orientation.lock(nextMode);
+      } catch (err) {
+        console.log("[ScreenShare] Orientation lock unsupported/restricted:", err);
+      }
+    }
+  };
   const [unreadCount, setUnreadCount] = useState(0);
 
   const activeTabRef = useRef(activeTab);
@@ -222,14 +236,32 @@ export default function WatchPartyRoom() {
   const renderVideoArea = () => {
     if (activeScreenShare) {
       return (
-        <div ref={screenContainerRef} className="w-full h-full bg-black flex items-center justify-center relative p-2 sm:p-4 group">
-          <button
-            onClick={toggleFullscreen}
-            className="absolute top-4 right-4 z-20 p-2.5 rounded-xl bg-black/60 hover:bg-black/80 text-white backdrop-blur-sm transition-all opacity-80 hover:opacity-100 shadow-lg"
-            title={isFullscreen ? "Exit Fullscreen" : "Fullscreen Screen Share"}
-          >
-            {isFullscreen ? <Minimize2 className="w-5 h-5" /> : <Maximize2 className="w-5 h-5" />}
-          </button>
+        <div 
+          ref={screenContainerRef} 
+          className={cn(
+            "w-full h-full bg-black flex items-center justify-center relative p-2 sm:p-4 group transition-all",
+            isFullscreen && (screenOrientation === 'portrait' ? "max-w-[540px] aspect-[9/16] mx-auto border-x border-border/40" : "w-full h-full aspect-video")
+          )}
+        >
+          <div className="absolute top-4 right-4 z-20 flex items-center gap-2">
+            {isFullscreen && (
+              <button
+                onClick={toggleScreenOrientation}
+                className="p-2.5 rounded-xl bg-black/60 hover:bg-black/80 text-white backdrop-blur-sm transition-all opacity-80 hover:opacity-100 shadow-lg flex items-center gap-1.5 text-xs font-semibold"
+                title={`Switch to ${screenOrientation === 'landscape' ? 'Portrait' : 'Landscape'} mode`}
+              >
+                {screenOrientation === 'portrait' ? <Smartphone className="w-4 h-4 text-primary" /> : <Monitor className="w-4 h-4 text-primary" />}
+                <span className="capitalize hidden sm:inline">{screenOrientation}</span>
+              </button>
+            )}
+            <button
+              onClick={toggleFullscreen}
+              className="p-2.5 rounded-xl bg-black/60 hover:bg-black/80 text-white backdrop-blur-sm transition-all opacity-80 hover:opacity-100 shadow-lg"
+              title={isFullscreen ? "Exit Fullscreen" : "Fullscreen Screen Share"}
+            >
+              {isFullscreen ? <Minimize2 className="w-5 h-5" /> : <Maximize2 className="w-5 h-5" />}
+            </button>
+          </div>
 
           {activeScreenShare === socket?.id ? (
             <div className="flex flex-col items-center justify-center text-center max-w-lg bg-surface border border-border p-6 rounded-3xl shadow-2xl">
@@ -252,7 +284,7 @@ export default function WatchPartyRoom() {
               ref={screenShareVideoRef} 
               autoPlay 
               playsInline 
-              className="max-w-full max-h-full object-contain rounded-xl shadow-2xl"
+              className={cn("max-w-full max-h-full object-contain rounded-xl shadow-2xl", isFullscreen && screenOrientation === 'portrait' && "max-h-[90vh]")}
             />
           )}
         </div>
