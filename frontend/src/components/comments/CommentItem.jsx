@@ -148,10 +148,10 @@ export function CommentItem({
 
             <AuthorBadge isCreator={isCreator} />
 
-            {comment.showLocation && comment.location && (
+            {comment.showLocation && (
               <span className="text-[11px] font-medium text-primary flex items-center gap-0.5 bg-primary/10 px-2 py-0.5 rounded-full border border-primary/20">
                 <MapPin className="w-3 h-3" />
-                {comment.location}
+                {comment.location || comment.user?.city || 'Location Shared'}
               </span>
             )}
 

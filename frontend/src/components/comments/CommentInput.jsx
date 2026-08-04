@@ -58,7 +58,7 @@ export function CommentInput({
 
     setSubmitting(true);
     try {
-      await onSubmit({ text: text.trim(), showLocation });
+      await onSubmit({ text: text.trim(), showLocation, location: userLocationStr });
       setText('');
       setShowLocation(false);
     } catch (err) {

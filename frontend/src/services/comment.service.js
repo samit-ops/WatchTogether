@@ -8,11 +8,12 @@ export const commentService = {
   },
 
   // Create a new top-level comment or reply
-  createComment: async (videoId, text, parentComment = null, showLocation = false) => {
+  createComment: async (videoId, text, parentComment = null, showLocation = false, location = '') => {
     const response = await api.post(`/v1/comments/video/${videoId}`, {
       text,
       parentComment,
-      showLocation
+      showLocation,
+      location
     });
     return response;
   },

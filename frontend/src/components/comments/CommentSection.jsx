@@ -212,11 +212,13 @@ export function CommentSection({ videoId, videoUploaderId, videoSource = 'platfo
   }, [socket, videoId]);
 
   // Handle Optimistic Top-Level Comment Posting
-  const handleCreateTopComment = async ({ text, showLocation }) => {
+  const handleCreateTopComment = async ({ text, showLocation, location }) => {
     if (!user) {
       toast.info('Please log in to post a comment.');
       return;
     }
+
+    const commentLocation = showLocation ? (location || user.city || 'India') : '';
 
     const tempId = `temp-${Date.now()}`;
     const tempComment = {
@@ -236,7 +238,7 @@ export function CommentSection({ videoId, videoUploaderId, videoSource = 'platfo
       isLiked: false,
       isDisliked: false,
       showLocation,
-      location: showLocation ? (user.city || '') : '',
+      location: commentLocation,
       isEdited: false,
       createdAt: new Date().toISOString(),
       replies: []
@@ -248,7 +250,7 @@ export function CommentSection({ videoId, videoUploaderId, videoSource = 'platfo
 
     try {
       // 2. Call REST API
-      const res = await commentService.createComment(videoId, text, null, showLocation);
+      const res = await commentService.createComment(videoId, text, null, showLocation, commentLocation);
       const realComment = res.data?.comment || res.comment;
 
       // 3. Replace temp comment with server comment cleanly
@@ -264,11 +266,13 @@ export function CommentSection({ videoId, videoUploaderId, videoSource = 'platfo
   };
 
   // Handle Posting Reply
-  const handleCreateReply = async (parentCommentId, text, showLocation) => {
+  const handleCreateReply = async (parentCommentId, text, showLocation, location) => {
     if (!user) {
       toast.info('Please log in to reply.');
       return;
     }
+
+    const replyLocation = showLocation ? (location || user.city || 'India') : '';
 
     const tempId = `temp-reply-${Date.now()}`;
     const tempReply = {
@@ -288,7 +292,7 @@ export function CommentSection({ videoId, videoUploaderId, videoSource = 'platfo
       isLiked: false,
       isDisliked: false,
       showLocation,
-      location: showLocation ? (user.city || '') : '',
+      location: replyLocation,
       isEdited: false,
       createdAt: new Date().toISOString(),
       replies: []
@@ -300,7 +304,7 @@ export function CommentSection({ videoId, videoUploaderId, videoSource = 'platfo
 
     try {
       // 2. Call backend API
-      const res = await commentService.createComment(videoId, text, parentCommentId, showLocation);
+      const res = await commentService.createComment(videoId, text, parentCommentId, showLocation, replyLocation);
       const realReply = res.data?.comment || res.comment || res.data;
 
       // 3. Replace temp reply with server reply

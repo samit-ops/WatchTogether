@@ -84,7 +84,7 @@ exports.getCommentsByVideo = asyncHandler(async (req, res, next) => {
 // @access  Private
 exports.createComment = asyncHandler(async (req, res, next) => {
   const { videoId } = req.params;
-  const { text, parentComment, showLocation } = req.body;
+  const { text, parentComment, showLocation, location } = req.body;
 
   // 1. Verify Video Exists & is a Platform Video
   const video = await Video.findById(videoId);
@@ -115,7 +115,7 @@ exports.createComment = asyncHandler(async (req, res, next) => {
   }
 
   // 4. Determine optional location display
-  const userLocation = req.user.city || '';
+  const userLocation = location || req.user.city || req.user.state || 'India';
 
   // 5. Create Comment Document
   const newComment = await Comment.create({

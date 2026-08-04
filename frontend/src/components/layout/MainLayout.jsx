@@ -10,6 +10,11 @@ export function MainLayout() {
   const { scrollYProgress } = useScroll();
   const scaleX = useSpring(scrollYProgress, { stiffness: 400, damping: 30, restDelta: 0.001 });
 
+  // Always reset page scroll to top when opening any feature or video
+  React.useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+  }, [location.pathname]);
+
   return (
     <div className="relative flex min-h-screen flex-col">
       {/* Glowing Top Scroll Progress Bar */}
