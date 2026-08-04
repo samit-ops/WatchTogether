@@ -246,7 +246,7 @@ export default function Register() {
                 <Input
                   type="text"
                   required
-                  placeholder="SAMIT KUMAR"
+                  placeholder="Enter your name"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   className="pl-10 h-11 bg-background/50 focus:bg-background"
@@ -262,7 +262,7 @@ export default function Register() {
                 <Input
                   type="email"
                   required
-                  placeholder="name@example.com"
+                  placeholder="Enter your email address"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className={`pl-10 h-11 bg-background/50 focus:bg-background ${email && !emailValidation.valid ? 'border-red-400/60' : email && emailValidation.valid ? 'border-green-500/40' : ''}`}
@@ -278,7 +278,7 @@ export default function Register() {
                 <Phone className="absolute left-3.5 top-3.5 h-4 w-4 text-muted" />
                 <Input
                   type="tel"
-                  placeholder="+91 9876543210"
+                  placeholder="Enter your phone number"
                   value={phoneNumber}
                   onChange={(e) => setPhoneNumber(e.target.value)}
                   className={`pl-10 h-11 bg-background/50 focus:bg-background ${phoneNumber && !phoneValidation.valid ? 'border-red-400/60' : phoneNumber && phoneValidation.valid ? 'border-green-500/40' : ''}`}
@@ -323,7 +323,7 @@ export default function Register() {
                   type="text"
                   maxLength={6}
                   required
-                  placeholder="110001"
+                  placeholder="Enter 6-digit pincode"
                   value={pincode}
                   onChange={(e) => handlePincodeChange(e.target.value)}
                   className={`h-11 font-mono bg-background/50 focus:bg-background ${pincode && !pincodeResult.valid && !pincodeLoading ? 'border-red-400/60' : pincode && pincodeResult.valid ? 'border-green-500/40' : ''}`}
@@ -348,7 +348,7 @@ export default function Register() {
                     type="text"
                     required
                     readOnly={cityLocked}
-                    placeholder="e.g. New Delhi"
+                    placeholder="Enter your city"
                     value={city}
                     onChange={(e) => {
                       if (cityLocked) return;
@@ -370,7 +370,7 @@ export default function Register() {
                 <Input
                   type="password"
                   required
-                  placeholder="••••••••"
+                  placeholder="Enter your password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   className="pl-10 h-11 bg-background/50 focus:bg-background"
@@ -395,7 +395,7 @@ export default function Register() {
                 <Input
                   type="password"
                   required
-                  placeholder="••••••••"
+                  placeholder="Confirm your password"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   className="pl-10 h-11 bg-background/50 focus:bg-background"
