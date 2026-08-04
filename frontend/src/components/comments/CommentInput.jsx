@@ -13,7 +13,30 @@ export function CommentInput({
 }) {
   const [text, setText] = useState('');
   const [showLocation, setShowLocation] = useState(false);
+  const [detectedCity, setDetectedCity] = useState('');
   const [submitting, setSubmitting] = useState(false);
+
+  const handleLocationCheckboxChange = (checked) => {
+    setShowLocation(checked);
+    if (checked && !user?.city && !detectedCity && typeof navigator !== 'undefined' && navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        async (pos) => {
+          try {
+            const res = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${pos.coords.latitude}&longitude=${pos.coords.longitude}&localityLanguage=en`);
+            const data = await res.json();
+            if (data.city || data.locality) {
+              setDetectedCity(data.city || data.locality);
+            }
+          } catch (e) {
+            console.log('[Geolocation error]', e);
+          }
+        },
+        (err) => console.log('Geolocation permission denied', err)
+      );
+    }
+  };
+
+  const userLocationStr = user?.city || detectedCity || 'Detected Location';
   const [errorMsg, setErrorMsg] = useState('');
 
   const maxLength = 1000;
@@ -45,8 +68,6 @@ export function CommentInput({
       setSubmitting(false);
     }
   };
-
-  const userLocationStr = user?.city ? `📍 ${user.city}` : '📍 Your location';
 
   return (
     <form onSubmit={handleSubmit} className="flex gap-3 w-full">
@@ -95,16 +116,16 @@ export function CommentInput({
         {/* Controls & Options */}
         <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
           {/* Optional Location Privacy Checkbox */}
-          {user?.city && (
-            <label className="flex items-center gap-1.5 text-xs text-muted cursor-pointer hover:text-text transition-colors">
+          {user && (
+            <label className="flex items-center gap-1.5 text-xs text-muted cursor-pointer hover:text-text transition-colors select-none">
               <input
                 type="checkbox"
                 checked={showLocation}
-                onChange={(e) => setShowLocation(e.target.checked)}
+                onChange={(e) => handleLocationCheckboxChange(e.target.checked)}
                 className="rounded border-border bg-background text-primary focus:ring-primary h-3.5 w-3.5"
               />
-              <MapPin className="w-3.5 h-3.5 text-primary" />
-              <span>Show my location ({userLocationStr})</span>
+              <MapPin className="w-3.5 h-3.5 text-primary shrink-0" />
+              <span className="truncate max-w-[190px] sm:max-w-none">Show my location ({userLocationStr})</span>
             </label>
           )}
 
