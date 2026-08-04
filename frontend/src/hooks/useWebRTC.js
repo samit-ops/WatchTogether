@@ -64,26 +64,28 @@ export function useWebRTC(socket, roomId, participants, currentSocketId) {
       console.log(`[WebRTC] Track received from ${targetSocketId}:`, e.track.kind, e.streams);
 
       if (e.track.kind === 'video') {
-        setRemoteStreams(prev => {
-          const existingStream = prev[targetSocketId];
-          const existingVideoTrack = existingStream?.getVideoTracks().find(t => t.readyState === 'live');
-          
-          if (existingVideoTrack && existingVideoTrack.id !== e.track.id) {
-            console.log(`[WebRTC] Second video track detected from ${targetSocketId} -> Assigning to Remote Screen Stream`);
-            setRemoteScreenStreams(screenPrev => {
-              const sStream = screenPrev[targetSocketId] || new MediaStream();
-              if (!sStream.getTracks().includes(e.track)) sStream.addTrack(e.track);
-              return { ...screenPrev, [targetSocketId]: new MediaStream(sStream.getTracks()) };
-            });
-            return prev;
-          }
+        const trackLabel = (e.track.label || '').toLowerCase();
+        const existingStream = peersRef.current[targetSocketId]?.remoteCameraStream;
+        const isSecondTrack = existingStream && existingStream.getVideoTracks().length > 0 && existingStream.getVideoTracks()[0].id !== e.track.id;
+        const isScreenLabel = trackLabel.includes('screen') || trackLabel.includes('display') || trackLabel.includes('window') || trackLabel.includes('tab');
 
-          const baseStream = existingStream || new MediaStream();
-          if (!baseStream.getTracks().includes(e.track)) {
-            baseStream.addTrack(e.track);
-          }
-          return { ...prev, [targetSocketId]: new MediaStream(baseStream.getTracks()) };
-        });
+        if (isScreenLabel || isSecondTrack) {
+          console.log(`[WebRTC] Assigning screen share video track from ${targetSocketId}`);
+          setRemoteScreenStreams(screenPrev => {
+            return { ...screenPrev, [targetSocketId]: new MediaStream([e.track]) };
+          });
+        } else {
+          console.log(`[WebRTC] Assigning camera video track from ${targetSocketId}`);
+          setRemoteStreams(prev => {
+            const baseStream = prev[targetSocketId] || new MediaStream();
+            const nonVideoTracks = baseStream.getTracks().filter(t => t.kind !== 'video');
+            const updatedStream = new MediaStream([...nonVideoTracks, e.track]);
+            if (peersRef.current[targetSocketId]) {
+              peersRef.current[targetSocketId].remoteCameraStream = updatedStream;
+            }
+            return { ...prev, [targetSocketId]: updatedStream };
+          });
+        }
       } else {
         setRemoteStreams(prev => {
           const baseStream = prev[targetSocketId] || new MediaStream();
