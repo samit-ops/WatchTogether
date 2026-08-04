@@ -1,6 +1,8 @@
 const Room = require('../models/Room');
 const logger = require('../config/logger');
 
+const disconnectTimers = {};
+
 const broadcastParticipants = async (io, room) => {
   try {
     const unique = [];
@@ -76,6 +78,13 @@ module.exports = (io, socket) => {
       }
 
       const userId = socket.user._id.toString();
+      
+      // Cancel pending disconnect timer if user refreshed page or reconnected
+      if (disconnectTimers[userId]) {
+        clearTimeout(disconnectTimers[userId]);
+        delete disconnectTimers[userId];
+      }
+
       const isHost = room.host.toString() === userId;
 
       if (room.isLocked && !isHost) {
@@ -350,8 +359,19 @@ module.exports = (io, socket) => {
 
   socket.on('disconnect', async () => {
     try {
-      if (socket.currentRoom) {
-        await handleParticipantLeave(io, socket, socket.currentRoom);
+      if (socket.currentRoom && socket.user) {
+        const roomId = socket.currentRoom;
+        const userId = (socket.user._id || socket.user.id || '').toString();
+
+        if (disconnectTimers[userId]) {
+          clearTimeout(disconnectTimers[userId]);
+        }
+
+        // Delay participant removal by 5 seconds to gracefully handle browser page refreshes
+        disconnectTimers[userId] = setTimeout(async () => {
+          delete disconnectTimers[userId];
+          await handleParticipantLeave(io, socket, roomId);
+        }, 5000);
       }
     } catch (error) {
       logger.error(`Disconnect handling error: ${error.message}`);
