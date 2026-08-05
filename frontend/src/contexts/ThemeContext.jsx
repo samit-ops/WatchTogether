@@ -7,24 +7,24 @@ const ThemeContext = createContext(null);
 export function getISTHour() {
   try {
     const now = new Date();
-    const formatter = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Kolkata', hour: 'numeric', hour12: false });
+    const formatter = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Kolkata', hour: 'numeric', minute: 'numeric', hour12: false });
     const parts = formatter.formatToParts(now);
+    let hour = 0, minute = 0;
     for (const part of parts) {
-      if (part.type === 'hour') {
-        const val = parseInt(part.value, 10);
-        return val === 24 ? 0 : val;
-      }
+      if (part.type === 'hour') hour = parseInt(part.value, 10) % 24;
+      if (part.type === 'minute') minute = parseInt(part.value, 10);
     }
+    return hour + minute / 60;
   } catch (e) {
     console.error('Error calculating IST time:', e);
   }
-  return new Date().getHours();
+  return new Date().getHours() + new Date().getMinutes() / 60;
 }
 
 export function isISTLightThemeTime() {
-  const istHour = getISTHour();
-  // 10:00 AM to 12:00 PM IST (10:00 - 11:59 IST)
-  return istHour >= 10 && istHour < 12;
+  const istTime = getISTHour();
+  // 10:00 AM (10.0) to 12:00 PM (12.0) IST
+  return istTime >= 10.0 && istTime <= 12.0;
 }
 
 const applyThemeClass = (theme) => {

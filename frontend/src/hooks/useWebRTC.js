@@ -268,6 +268,18 @@ export function useWebRTC(socket, roomId, participants, currentSocketId) {
         try {
           await peer.setRemoteDescription(new RTCSessionDescription(sdp));
           drainPendingCandidates(from, peer);
+
+          // Multi-user screen share check: if screen share is active and peer lacks screen sender, attach & negotiate
+          if (screenStreamRef.current && (!screenSendersRef.current[from] || screenSendersRef.current[from].length === 0)) {
+            const tracks = screenStreamRef.current.getTracks();
+            const addedSenders = [];
+            tracks.forEach(track => {
+              const sender = peer.addTrack(track, screenStreamRef.current);
+              addedSenders.push(sender);
+            });
+            screenSendersRef.current[from] = addedSenders;
+            makeOffer(from, peer);
+          }
         } catch (err) {
           console.error('[WebRTC] Error handling answer', err);
         }
