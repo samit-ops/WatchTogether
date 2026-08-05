@@ -90,19 +90,38 @@ module.exports = (io, socket) => {
         return socket.emit('error', { message: 'Room not found' });
       }
 
+      const userId = getUserIdStr(socket.user);
+      if (!userId) {
+        return socket.emit('error', { message: 'Unauthorized user session' });
+      }
+
+      // 1. Single Active Meeting Rule: Auto-leave any OTHER active meeting the user is in
+      const existingOtherRooms = await Room.find({ 
+        roomId: { $ne: roomId },
+        status: 'active',
+        'participants.user': userId 
+      });
+
+      for (const otherRoom of existingOtherRooms) {
+        const pIdx = otherRoom.participants.findIndex(p => getUserIdStr(p.user) === userId);
+        if (pIdx !== -1) {
+          otherRoom.participants.splice(pIdx, 1);
+          await otherRoom.save().catch(() => {});
+          await broadcastParticipants(io, otherRoom.roomId);
+        }
+      }
+
       if (room.status === 'ended') {
         room.status = 'active';
       }
 
-      const userId = socket.user._id.toString();
-      
-      // Cancel pending disconnect timer if user refreshed page or reconnected
+      // 2. Cancel pending disconnect timer if user refreshed page or reconnected
       if (disconnectTimers[userId]) {
         clearTimeout(disconnectTimers[userId]);
         delete disconnectTimers[userId];
       }
 
-      const isHost = (room.host?._id || room.host).toString() === userId;
+      const isHost = getUserIdStr(room.host) === userId;
 
       if (room.isLocked && !isHost) {
         return socket.emit('error', { message: 'Room is locked' });
@@ -111,7 +130,7 @@ module.exports = (io, socket) => {
       socket.join(roomId);
       socket.currentRoom = roomId;
 
-      // Cleanly update existing participant entry or deduplicate by userId
+      // 3. Cleanly update existing participant entry or deduplicate by userId
       const existingParticipant = room.participants.find(p => 
         p.socketId === socket.id || getUserIdStr(p.user) === userId
       );
@@ -121,7 +140,7 @@ module.exports = (io, socket) => {
         if (isHost) existingParticipant.role = 'host';
       } else {
         room.participants.push({
-          user: socket.user._id,
+          user: socket.user._id || socket.user.id || socket.user,
           socketId: socket.id,
           role: isHost ? 'host' : 'guest',
           joinedAt: new Date(),
@@ -143,7 +162,12 @@ module.exports = (io, socket) => {
       });
       room.participants = Array.from(uniqueMap.values());
 
-      await room.save();
+      try {
+        await room.save();
+      } catch (saveErr) {
+        logger.warn(`Fallback update for room ${roomId}: ${saveErr.message}`);
+        await Room.updateOne({ roomId }, { $set: { participants: room.participants, status: room.status } });
+      }
 
       io.to(roomId).emit('receive-message', {
         id: Date.now().toString(),
