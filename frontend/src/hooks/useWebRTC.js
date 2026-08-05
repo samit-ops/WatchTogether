@@ -87,19 +87,27 @@ export function useWebRTC(socket, roomId, participants, currentSocketId) {
     console.log(`[WebRTC] Creating peer connection for ${targetSocketId}`);
     const peer = new RTCPeerConnection(ICE_SERVERS);
     
-    // Add existing camera/audio tracks if available
+    // Add existing camera/audio tracks if available. While presenting, the
+    // display track occupies the single outbound video slot for this peer.
     if (localStreamRef.current) {
       localStreamRef.current.getTracks().forEach(track => {
-        peer.addTrack(track, localStreamRef.current);
+        if (track.kind !== 'video' || !screenStreamRef.current) {
+          peer.addTrack(track, localStreamRef.current);
+        }
       });
     }
     
-    // Add screen track if currently sharing
+    // A participant joining while a screen share is active must receive that
+    // track in the initial SDP exchange.  Do not add a second video sender:
+    // doing so makes the remote side depend on non-standard track labels.
     if (screenStreamRef.current) {
       const screenTrack = screenStreamRef.current.getVideoTracks()[0];
       if (screenTrack) {
         const sender = peer.addTrack(screenTrack, screenStreamRef.current);
-        screenSendersRef.current[targetSocketId] = [sender];
+        screenSendersRef.current[targetSocketId] = {
+          sender,
+          restoreTrack: localStreamRef.current?.getVideoTracks()[0] || null
+        };
       }
     }
 
@@ -273,17 +281,6 @@ export function useWebRTC(socket, roomId, participants, currentSocketId) {
           await peer.setRemoteDescription(new RTCSessionDescription(sdp));
           drainPendingCandidates(from, peer);
 
-          // Multi-user screen share check: if screen share is active and peer lacks screen sender, attach & negotiate
-          if (screenStreamRef.current && (!screenSendersRef.current[from] || screenSendersRef.current[from].length === 0)) {
-            const tracks = screenStreamRef.current.getTracks();
-            const addedSenders = [];
-            tracks.forEach(track => {
-              const sender = peer.addTrack(track, screenStreamRef.current);
-              addedSenders.push(sender);
-            });
-            screenSendersRef.current[from] = addedSenders;
-            makeOffer(from, peer);
-          }
         } catch (err) {
           console.error('[WebRTC] Error handling answer', err);
         }
@@ -394,7 +391,8 @@ export function useWebRTC(socket, roomId, participants, currentSocketId) {
         localStreamRef.current.removeTrack(videoTrack);
       }
       Object.entries(peersRef.current).forEach(([socketId, peer]) => {
-        const sender = peer.getSenders().find(s => s.track && s.track.kind === 'video' && s !== screenSendersRef.current[socketId]);
+        const screenSender = screenSendersRef.current[socketId]?.sender;
+        const sender = peer.getSenders().find(s => s.track && s.track.kind === 'video' && s !== screenSender);
         if (sender) {
           try { peer.removeTrack(sender); } catch (e) {}
         }
@@ -415,8 +413,15 @@ export function useWebRTC(socket, roomId, participants, currentSocketId) {
         setLocalStream(new MediaStream(localStreamRef.current.getTracks()));
         
         Object.entries(peersRef.current).forEach(([socketId, peer]) => {
-          peer.addTrack(newTrack, localStreamRef.current);
-          makeOffer(socketId, peer);
+          const screenSender = screenSendersRef.current[socketId];
+          if (screenSender) {
+            // Keep presenting. This becomes the camera track restored when
+            // screen sharing ends instead of adding a second video m-line.
+            screenSender.restoreTrack = newTrack;
+          } else {
+            peer.addTrack(newTrack, localStreamRef.current);
+            makeOffer(socketId, peer);
+          }
         });
         
         setVideoEnabled(true);
@@ -430,25 +435,29 @@ export function useWebRTC(socket, roomId, participants, currentSocketId) {
     }
   };
 
-  const stopScreenShare = useCallback(() => {
+  const stopScreenShare = useCallback(async () => {
     if (screenStreamRef.current) {
       screenStreamRef.current.getTracks().forEach(track => track.stop());
       screenStreamRef.current = null;
     }
     setScreenStream(null);
     
-    Object.entries(peersRef.current).forEach(([socketId, peer]) => {
-      const senders = screenSendersRef.current[socketId] || [];
-      senders.forEach(sender => {
-        try {
-          peer.removeTrack(sender);
-        } catch (err) {
-          console.error('[WebRTC] Error removing screen sender:', err);
+    await Promise.all(Object.entries(peersRef.current).map(async ([socketId, peer]) => {
+      const screenSender = screenSendersRef.current[socketId];
+      if (!screenSender) return;
+      try {
+        if (screenSender.restoreTrack) {
+          await screenSender.sender.replaceTrack(screenSender.restoreTrack);
+        } else {
+          peer.removeTrack(screenSender.sender);
+          makeOffer(socketId, peer);
         }
-      });
-      delete screenSendersRef.current[socketId];
-      makeOffer(socketId, peer);
-    });
+      } catch (err) {
+        console.error('[WebRTC] Error restoring camera sender:', err);
+      } finally {
+        delete screenSendersRef.current[socketId];
+      }
+    }));
     
     setScreenSharing(false);
     if (socket) socket.emit('screen-share-stop', { roomId });
@@ -476,21 +485,23 @@ export function useWebRTC(socket, roomId, participants, currentSocketId) {
       setScreenStream(stream);
       setScreenSharing(true);
       
-      const tracks = stream.getTracks();
       const screenVideoTrack = stream.getVideoTracks()[0];
       if (screenVideoTrack) {
         screenVideoTrack.onended = stopScreenShare;
       }
       
-      Object.entries(peersRef.current).forEach(([socketId, peer]) => {
-        const addedSenders = [];
-        tracks.forEach(track => {
-          const sender = peer.addTrack(track, stream);
-          addedSenders.push(sender);
-        });
-        screenSendersRef.current[socketId] = addedSenders;
-        makeOffer(socketId, peer);
-      });
+      await Promise.all(Object.entries(peersRef.current).map(async ([socketId, peer]) => {
+        const cameraSender = peer.getSenders().find(sender => sender.track?.kind === 'video');
+        if (cameraSender) {
+          const restoreTrack = cameraSender.track;
+          await cameraSender.replaceTrack(screenVideoTrack);
+          screenSendersRef.current[socketId] = { sender: cameraSender, restoreTrack };
+        } else {
+          const sender = peer.addTrack(screenVideoTrack, stream);
+          screenSendersRef.current[socketId] = { sender, restoreTrack: null };
+          makeOffer(socketId, peer);
+        }
+      }));
       
       if (socket) socket.emit('screen-share-start', { roomId });
       return true;
