@@ -3,6 +3,14 @@ const logger = require('../config/logger');
 
 const disconnectTimers = {};
 
+const getUserIdStr = (userObj) => {
+  if (!userObj) return '';
+  if (typeof userObj === 'string') return userObj;
+  if (userObj._id) return userObj._id.toString();
+  if (userObj.id) return userObj.id.toString();
+  return userObj.toString();
+};
+
 const broadcastParticipants = async (io, room) => {
   try {
     const targetRoomId = typeof room === 'string' ? room : (room.roomId || room);
@@ -12,11 +20,19 @@ const broadcastParticipants = async (io, room) => {
 
     if (!freshRoom) return;
 
-    // Filter out invalid/null user entries
-    freshRoom.participants = freshRoom.participants.filter(p => p.user);
+    // Filter out invalid/null user entries and deduplicate by user ID
+    const uniqueMap = new Map();
+    freshRoom.participants.forEach(p => {
+      const uId = getUserIdStr(p.user);
+      if (uId && !uniqueMap.has(uId)) {
+        uniqueMap.set(uId, p);
+      }
+    });
+
+    const uniqueParticipants = Array.from(uniqueMap.values());
 
     io.to(targetRoomId).emit('participants-updated', {
-      participants: freshRoom.participants,
+      participants: uniqueParticipants,
       host: freshRoom.host,
       playbackPermission: freshRoom.playbackPermission,
       meetingPermissions: freshRoom.meetingPermissions,
@@ -34,8 +50,9 @@ const handleParticipantLeave = async (io, socket, roomId) => {
     const room = await Room.findOne({ roomId });
     if (!room) return;
 
+    const currentUserId = (socket.user?._id || socket.user?.id || '').toString();
     const participantIndex = room.participants.findIndex(p => 
-      p.socketId === socket.id || (p.user?._id || p.user).toString() === (socket.user?._id || socket.user?.id || '').toString()
+      p.socketId === socket.id || getUserIdStr(p.user) === currentUserId
     );
     if (participantIndex !== -1) {
       const participant = room.participants[participantIndex];
@@ -85,7 +102,7 @@ module.exports = (io, socket) => {
         delete disconnectTimers[userId];
       }
 
-      const isHost = room.host.toString() === userId;
+      const isHost = (room.host?._id || room.host).toString() === userId;
 
       if (room.isLocked && !isHost) {
         return socket.emit('error', { message: 'Room is locked' });
@@ -94,9 +111,9 @@ module.exports = (io, socket) => {
       socket.join(roomId);
       socket.currentRoom = roomId;
 
-      // Update or add participant entry on page refresh / joining from device
+      // Cleanly update existing participant entry or deduplicate by userId
       const existingParticipant = room.participants.find(p => 
-        p.socketId === socket.id || (p.user?._id || p.user).toString() === userId
+        p.socketId === socket.id || getUserIdStr(p.user) === userId
       );
 
       if (existingParticipant) {
@@ -113,6 +130,18 @@ module.exports = (io, socket) => {
           isScreenSharing: false
         });
       }
+
+      // Deduplicate participants array by user ID to guarantee exact member count
+      const uniqueMap = new Map();
+      room.participants.forEach(p => {
+        const uId = getUserIdStr(p.user);
+        if (uId) {
+          if (!uniqueMap.has(uId) || p.socketId === socket.id) {
+            uniqueMap.set(uId, p);
+          }
+        }
+      });
+      room.participants = Array.from(uniqueMap.values());
 
       await room.save();
 

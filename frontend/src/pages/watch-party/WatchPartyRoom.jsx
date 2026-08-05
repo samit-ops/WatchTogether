@@ -131,7 +131,9 @@ export default function WatchPartyRoom() {
   const screenSharerParticipant = participants.find(p => p.isScreenSharing);
   const effectiveScreenShareId = activeScreenShare || screenSharerParticipant?.socketId;
   const isLocalScreenShare = screenSharing || (effectiveScreenShareId && effectiveScreenShareId === socket?.id);
-  const currentScreenStream = isLocalScreenShare ? screenStream : (effectiveScreenShareId ? remoteScreenStreams[effectiveScreenShareId] : null);
+  const currentScreenStream = isLocalScreenShare 
+    ? screenStream 
+    : (effectiveScreenShareId ? (remoteScreenStreams[effectiveScreenShareId] || Object.values(remoteScreenStreams)[0]) : null);
 
   useEffect(() => {
     if (effectiveScreenShareId && !isLocalScreenShare && screenShareVideoRef.current && currentScreenStream) {
