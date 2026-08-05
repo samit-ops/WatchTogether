@@ -57,7 +57,9 @@ Modern media consumption is increasingly social, yet traditional streaming platf
 - **New Device & Geolocation Security**: Detects login attempts from unverified cities or new user-agents, mandating 6-digit security OTP verification prior to granting access.
 
 ### 2. 🎥 Watch Party & Video Conference Engine
-- **Dual Watch Party Modes**: Supports both **Uploaded Video Watch Parties** (synced media player + video call) and **Live Watch Parties** (Google Meet-style grid).
+- **Dual Watch Party Modes**:
+  - **Uploaded Video Watch Parties**: Powered by **Socket.IO WebSockets** for synchronized media player playback (`play`, `pause`, `seek`, `playbackRate`), combined with **WebRTC / LiveKit SFU** for real-time video/audio calling and screen sharing.
+  - **Live Watch Parties**: Powered by **LiveKit SFU (WebRTC)** for high-capacity Google Meet-style interactive video conference grids.
 - **LiveKit SFU Integration**: Single-stream publish and adaptive multi-track subscription ensuring smooth performance without WebRTC Mesh P2P CPU bottlenecks.
 - **Screen Sharing**: HD screen capture and stream broadcasting via `Track.Source.ScreenShare` with automatic camera restoration upon termination.
 - **Comprehensive Call Controls**: Toggle microphone, camera on/off, leave call, view participant list, and inspect connection status.
@@ -351,9 +353,9 @@ npm run build
                                                                      └── Participant Roster
 ```
 
-### Video Playback Synchronization
-- In **Uploaded Video Watch Parties**, whenever a host plays, pauses, or seeks the video player, a Socket.IO event (`play`, `pause`, `seek`) is emitted with current playback timestamp.
-- Subscribed client players catch the event and align their `currentTime` within <200ms delta.
+### Video Playback & Real-Time Communication Technology
+- **Uploaded Video Watch Parties**: Uses **Socket.IO WebSockets** for synchronized media player controls (`play`, `pause`, `seek`, `playbackRate`), combined with **WebRTC / LiveKit SFU** for the concurrent multi-user video/audio call overlay and screen sharing.
+- **Playback Timestamp Alignment**: Whenever a host interacts with the player, a Socket.IO event is broadcast to all clients in the room, keeping all players aligned within <200ms.
 
 ### Host Moderation Privileges
 - **Lock Room**: Host can lock the meeting room to prevent new users from joining.
