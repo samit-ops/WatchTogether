@@ -63,8 +63,8 @@ function ParticipantTile({ participant, stream, isLocal, totalParticipants }) {
   const audioRef = useRef(null);
 
   const videoTrack = stream && stream.getVideoTracks().find(t => t.readyState === 'live');
-  const hasVideo = Boolean(videoTrack && !participant.isCameraOff);
-  const isMuted = participant.isMuted || (!stream || stream.getAudioTracks().length === 0);
+  const hasVideo = isLocal ? Boolean(videoTrack) : Boolean(videoTrack && !participant.isCameraOff);
+  const isMuted = isLocal ? (!stream || stream.getAudioTracks().length === 0) : (participant.isMuted || (!stream || stream.getAudioTracks().length === 0));
 
   // Bind video stream and trigger play
   useEffect(() => {

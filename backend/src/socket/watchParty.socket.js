@@ -20,8 +20,8 @@ const broadcastParticipants = async (io, room) => {
 
     if (!freshRoom) return;
 
-    // Filter participants to ONLY those whose socket is actively connected in Socket.IO
-    const connectedParticipants = freshRoom.participants.filter(p => p.socketId && io.sockets.sockets.has(p.socketId));
+    // Send all participants with valid socketId
+    const connectedParticipants = freshRoom.participants.filter(p => p.socketId);
 
     io.to(targetRoomId).emit('participants-updated', {
       participants: connectedParticipants,
