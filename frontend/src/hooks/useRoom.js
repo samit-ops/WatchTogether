@@ -23,6 +23,7 @@ export function useRoom(socket, roomId) {
 
   useEffect(() => {
     let mounted = true;
+    let emitJoin;
     hasLiveParticipantsRef.current = false;
     
     const initRoom = async () => {
@@ -53,7 +54,7 @@ export function useRoom(socket, roomId) {
     initRoom();
     
     if (socket && roomId) {
-      const emitJoin = () => {
+      emitJoin = () => {
         socket.emit('join-room', { roomId });
       };
 
@@ -103,7 +104,7 @@ export function useRoom(socket, roomId) {
     return () => {
       mounted = false;
       if (socket && roomId) {
-        socket.off('connect', emitJoin);
+        if (emitJoin) socket.off('connect', emitJoin);
         socket.off('participants-updated');
         socket.off('room-ended');
         socket.off('kicked');
