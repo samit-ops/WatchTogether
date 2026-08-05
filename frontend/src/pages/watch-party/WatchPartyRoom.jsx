@@ -5,6 +5,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useRoom } from '@/hooks/useRoom';
 import { useWebRTC } from '@/hooks/useWebRTC';
 import { useRecording } from '@/hooks/useRecording';
+import roomService from '@/services/room.service';
 import { toast } from '@/utils/toast';
 import { CustomVideoPlayer } from '@/components/video/CustomVideoPlayer';
 import { Loader } from '@/components/ui/Loader';
@@ -47,11 +48,9 @@ export default function WatchPartyRoom() {
 
   useEffect(() => {
     if (roomType === 'live' && roomId) {
-      const tokenHeader = localStorage.getItem('token') ? { 'Authorization': `Bearer ${localStorage.getItem('token')}` } : {};
-      fetch(`/api/v1/rooms/${roomId}/token`, { headers: tokenHeader })
-        .then(res => res.json())
-        .then(data => {
-          const fetchedToken = data?.data?.token || data?.token;
+      roomService.getLiveKitToken(roomId)
+        .then(res => {
+          const fetchedToken = res?.data?.token || res?.token;
           if (fetchedToken) {
             setMediaToken(fetchedToken);
           }
