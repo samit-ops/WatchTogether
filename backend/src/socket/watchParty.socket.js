@@ -20,19 +20,12 @@ const broadcastParticipants = async (io, room) => {
 
     if (!freshRoom) return;
 
-    // Filter out invalid/null user entries and deduplicate by user ID
-    const uniqueMap = new Map();
-    freshRoom.participants.forEach(p => {
-      const uId = getUserIdStr(p.user);
-      if (uId && !uniqueMap.has(uId)) {
-        uniqueMap.set(uId, p);
-      }
-    });
-
-    const uniqueParticipants = Array.from(uniqueMap.values());
+    // A participant is a socket connection, not a user record. This keeps
+    // separate devices logged into the same account visible to one another.
+    const connectedParticipants = freshRoom.participants.filter(p => p.socketId);
 
     io.to(targetRoomId).emit('participants-updated', {
-      participants: uniqueParticipants,
+      participants: connectedParticipants,
       host: freshRoom.host,
       playbackPermission: freshRoom.playbackPermission,
       meetingPermissions: freshRoom.meetingPermissions,
@@ -50,10 +43,7 @@ const handleParticipantLeave = async (io, socket, roomId) => {
     const room = await Room.findOne({ roomId });
     if (!room) return;
 
-    const currentUserId = (socket.user?._id || socket.user?.id || '').toString();
-    const participantIndex = room.participants.findIndex(p => 
-      p.socketId === socket.id || getUserIdStr(p.user) === currentUserId
-    );
+    const participantIndex = room.participants.findIndex(p => p.socketId === socket.id);
     if (participantIndex !== -1) {
       const participant = room.participants[participantIndex];
       const wasHost = participant.role === 'host';
@@ -61,7 +51,8 @@ const handleParticipantLeave = async (io, socket, roomId) => {
       
       room.participants.splice(participantIndex, 1);
 
-      if (wasHost && room.participants.length > 0) {
+      const hostStillConnected = room.participants.some(p => getUserIdStr(p.user) === getUserIdStr(room.host));
+      if (wasHost && !hostStillConnected && room.participants.length > 0) {
         room.participants.sort((a, b) => new Date(a.joinedAt) - new Date(b.joinedAt));
         room.participants[0].role = 'host';
         room.host = room.participants[0].user;
@@ -115,10 +106,10 @@ module.exports = (io, socket) => {
         room.status = 'active';
       }
 
-      // 2. Cancel pending disconnect timer if user refreshed page or reconnected
-      if (disconnectTimers[userId]) {
-        clearTimeout(disconnectTimers[userId]);
-        delete disconnectTimers[userId];
+      // 2. Cancel a pending removal only when this exact socket rejoins.
+      if (disconnectTimers[socket.id]) {
+        clearTimeout(disconnectTimers[socket.id]);
+        delete disconnectTimers[socket.id];
       }
 
       const isHost = getUserIdStr(room.host) === userId;
@@ -130,10 +121,8 @@ module.exports = (io, socket) => {
       socket.join(roomId);
       socket.currentRoom = roomId;
 
-      // 3. Cleanly update existing participant entry or deduplicate by userId
-      const existingParticipant = room.participants.find(p => 
-        p.socketId === socket.id || getUserIdStr(p.user) === userId
-      );
+      // 3. A participant is uniquely identified by its Socket.IO connection.
+      const existingParticipant = room.participants.find(p => p.socketId === socket.id);
 
       if (existingParticipant) {
         existingParticipant.socketId = socket.id;
@@ -149,18 +138,6 @@ module.exports = (io, socket) => {
           isScreenSharing: false
         });
       }
-
-      // Deduplicate participants array by user ID to guarantee exact member count
-      const uniqueMap = new Map();
-      room.participants.forEach(p => {
-        const uId = getUserIdStr(p.user);
-        if (uId) {
-          if (!uniqueMap.has(uId) || p.socketId === socket.id) {
-            uniqueMap.set(uId, p);
-          }
-        }
-      });
-      room.participants = Array.from(uniqueMap.values());
 
       try {
         await room.save();
@@ -357,8 +334,7 @@ module.exports = (io, socket) => {
     try {
       const room = await Room.findOne({ roomId });
       if (!room) return;
-      const userId = (socket.user?._id || socket.user?.id || '').toString();
-      const participant = room.participants.find(p => p.socketId === socket.id || (p.user?._id || p.user).toString() === userId);
+      const participant = room.participants.find(p => p.socketId === socket.id);
       if (participant) {
         participant.isScreenSharing = true;
         participant.socketId = socket.id;
@@ -375,8 +351,7 @@ module.exports = (io, socket) => {
     try {
       const room = await Room.findOne({ roomId });
       if (!room) return;
-      const userId = (socket.user?._id || socket.user?.id || '').toString();
-      const participant = room.participants.find(p => p.socketId === socket.id || (p.user?._id || p.user).toString() === userId);
+      const participant = room.participants.find(p => p.socketId === socket.id);
       if (participant) {
         participant.isScreenSharing = false;
         await room.save();
@@ -420,15 +395,13 @@ module.exports = (io, socket) => {
     try {
       if (socket.currentRoom && socket.user) {
         const roomId = socket.currentRoom;
-        const userId = (socket.user._id || socket.user.id || '').toString();
-
-        if (disconnectTimers[userId]) {
-          clearTimeout(disconnectTimers[userId]);
+        if (disconnectTimers[socket.id]) {
+          clearTimeout(disconnectTimers[socket.id]);
         }
 
         // Delay participant removal by 5 seconds to gracefully handle browser page refreshes
-        disconnectTimers[userId] = setTimeout(async () => {
-          delete disconnectTimers[userId];
+        disconnectTimers[socket.id] = setTimeout(async () => {
+          delete disconnectTimers[socket.id];
           await handleParticipantLeave(io, socket, roomId);
         }, 5000);
       }

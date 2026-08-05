@@ -313,6 +313,7 @@ export default function WatchPartyRoom() {
             remoteStreams={remoteStreams} 
             participants={participants} 
             currentUserId={user?._id || user?.id} 
+            currentSocketId={socket?.id}
           />
         </div>
       );
@@ -526,6 +527,7 @@ export default function WatchPartyRoom() {
                 remoteStreams={remoteStreams} 
                 participants={participants} 
                 currentUserId={user?._id || user?.id} 
+                currentSocketId={socket?.id}
               />
             </div>
           )}

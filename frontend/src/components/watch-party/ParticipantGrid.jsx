@@ -2,17 +2,10 @@ import React, { useEffect, useRef } from 'react';
 import { cn } from '@/utils/cn';
 import { MicOff, Crown, Shield } from 'lucide-react';
 
-export function ParticipantGrid({ localStream, remoteStreams, participants, currentUserId }) {
-  // Deduplicate participants by user ID
-  const uniqueParticipants = [];
-  const seenUsers = new Set();
-  participants.forEach(p => {
-    const uid = String(p.user?._id || p.user?.id || p.user || p.socketId);
-    if (!seenUsers.has(uid)) {
-      seenUsers.add(uid);
-      uniqueParticipants.push(p);
-    }
-  });
+export function ParticipantGrid({ localStream, remoteStreams, participants, currentUserId, currentSocketId }) {
+  const uniqueParticipants = participants.filter((participant, index, allParticipants) =>
+    participant.socketId && allParticipants.findIndex(p => p.socketId === participant.socketId) === index
+  );
 
   // Fallback to local user if participants list is temporarily empty on page refresh
   if (uniqueParticipants.length === 0 && currentUserId) {
@@ -48,7 +41,7 @@ export function ParticipantGrid({ localStream, remoteStreams, participants, curr
     <div className={gridClasses}>
       {uniqueParticipants.map(p => {
         const pId = String(p.user?._id || p.user?.id || p.user || '');
-        const isLocal = Boolean(currentId && pId && currentId === pId);
+        const isLocal = Boolean(currentSocketId ? p.socketId === currentSocketId : (currentId && pId && currentId === pId));
         const stream = isLocal ? localStream : remoteStreams[p.socketId];
         
         return (

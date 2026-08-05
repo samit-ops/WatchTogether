@@ -19,9 +19,11 @@ export function useRoom(socket, roomId) {
   const [loading, setLoading] = useState(true);
   
   const leaveTimeoutRef = useRef(null);
+  const hasLiveParticipantsRef = useRef(false);
 
   useEffect(() => {
     let mounted = true;
+    hasLiveParticipantsRef.current = false;
     
     const initRoom = async () => {
       try {
@@ -31,7 +33,9 @@ export function useRoom(socket, roomId) {
         if (mounted) {
           setRoom(roomData);
           if (roomData.host) setHost(roomData.host);
-          if (roomData.participants) setParticipants(roomData.participants);
+          // Do not let an older REST snapshot overwrite a newer Socket.IO
+          // participant update received while this request was in flight.
+          if (roomData.participants && !hasLiveParticipantsRef.current) setParticipants(roomData.participants);
           if (roomData.isLocked !== undefined) setIsLocked(roomData.isLocked);
           if (roomData.isRecording !== undefined) setIsRecording(roomData.isRecording);
           if (roomData.playbackPermission !== undefined) setPlaybackPermission(roomData.playbackPermission);
@@ -60,6 +64,7 @@ export function useRoom(socket, roomId) {
       }
       
       socket.on('participants-updated', (data) => {
+        hasLiveParticipantsRef.current = true;
         setParticipants(data.participants || []);
         if (data.host) setHost(data.host);
         if (data.isLocked !== undefined) setIsLocked(data.isLocked);
