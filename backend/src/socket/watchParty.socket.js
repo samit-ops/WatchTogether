@@ -20,9 +20,8 @@ const broadcastParticipants = async (io, room) => {
 
     if (!freshRoom) return;
 
-    // A participant is a socket connection, not a user record. This keeps
-    // separate devices logged into the same account visible to one another.
-    const connectedParticipants = freshRoom.participants.filter(p => p.socketId);
+    // Filter participants to ONLY those whose socket is actively connected in Socket.IO
+    const connectedParticipants = freshRoom.participants.filter(p => p.socketId && io.sockets.sockets.has(p.socketId));
 
     io.to(targetRoomId).emit('participants-updated', {
       participants: connectedParticipants,

@@ -133,7 +133,13 @@ export default function WatchPartyRoom() {
   const isLocalScreenShare = screenSharing || (effectiveScreenShareId && effectiveScreenShareId === socket?.id);
   const currentScreenStream = isLocalScreenShare 
     ? screenStream 
-    : (effectiveScreenShareId ? (remoteScreenStreams[effectiveScreenShareId] || Object.values(remoteScreenStreams)[0]) : null);
+    : (effectiveScreenShareId ? (
+        remoteScreenStreams[effectiveScreenShareId] || 
+        remoteStreams[effectiveScreenShareId] || 
+        Object.values(remoteScreenStreams)[0] || 
+        Object.values(remoteStreams)[0] || 
+        null
+      ) : null);
 
   useEffect(() => {
     if (effectiveScreenShareId && !isLocalScreenShare && screenShareVideoRef.current && currentScreenStream) {

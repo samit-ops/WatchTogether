@@ -227,11 +227,9 @@ export function useWebRTC(socket, roomId, participants, currentSocketId) {
     participants.forEach(p => {
       if (p.socketId && p.socketId !== currentSocketId) {
         if (!peersRef.current[p.socketId]) {
-          if (currentSocketId > p.socketId) {
-            const peer = createPeer(p.socketId);
-            peersRef.current[p.socketId] = peer;
-            makeOffer(p.socketId, peer);
-          }
+          const peer = createPeer(p.socketId);
+          peersRef.current[p.socketId] = peer;
+          makeOffer(p.socketId, peer);
         }
       }
     });
