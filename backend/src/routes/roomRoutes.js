@@ -7,6 +7,7 @@ router.use(protect);
 
 router.post('/', roomController.createRoom);
 router.get('/:roomId', roomController.getRoom);
+router.get('/:roomId/token', roomController.getLiveKitToken);
 router.post('/leave', roomController.leaveRoom);
 router.delete('/:roomId', roomController.deleteRoom);
 

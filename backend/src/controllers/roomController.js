@@ -1,4 +1,5 @@
 const crypto = require('crypto');
+const { AccessToken } = require('livekit-server-sdk');
 const asyncHandler = require('../middleware/asyncHandler');
 const ApiError = require('../utils/ApiError');
 const ApiResponse = require('../utils/ApiResponse');
@@ -101,3 +102,35 @@ exports.deleteRoom = asyncHandler(async (req, res) => {
 
   res.status(httpStatus.OK).json(new ApiResponse(httpStatus.OK, {}, 'Room ended successfully'));
 });
+
+const LIVEKIT_API_KEY = process.env.LIVEKIT_API_KEY || "devkey";
+const LIVEKIT_API_SECRET = process.env.LIVEKIT_API_SECRET || "secret";
+
+exports.getLiveKitToken = asyncHandler(async (req, res) => {
+  const { roomId } = req.params;
+  const userId = req.user?._id || req.user?.id || req.query.userId;
+  const userName = req.user?.name || req.query.userName || userId;
+
+  if (!roomId || !userId) {
+    throw new ApiError(httpStatus.BAD_REQUEST, 'Required parameter roomId or userId is missing.');
+  }
+
+  const tokenEnvelope = new AccessToken(LIVEKIT_API_KEY, LIVEKIT_API_SECRET, {
+    identity: String(userId),
+    name: String(userName),
+  });
+
+  tokenEnvelope.addGrant({
+    roomJoin: true,
+    room: roomId,
+    canPublish: true,
+    canSubscribe: true
+  });
+
+  const jwtToken = await tokenEnvelope.toJwt();
+
+  return res.status(httpStatus.OK).json(
+    new ApiResponse(httpStatus.OK, { token: jwtToken }, 'LiveKit token generated successfully')
+  );
+});
+

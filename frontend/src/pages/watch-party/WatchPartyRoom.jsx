@@ -17,6 +17,15 @@ import { LeaveConfirmModal } from '@/components/watch-party/LeaveConfirmModal';
 import { MiniPipWindow } from '@/components/watch-party/MiniPipWindow';
 import { Copy, Users, Activity, Link2, Settings, Shield, Lock, Unlock, MonitorUp, Maximize2, Minimize2, MessageSquare, ArrowLeft, Smartphone, Monitor } from 'lucide-react';
 import { cn } from '@/utils/cn';
+import { 
+    LiveKitRoom, 
+    VideoConference, 
+    useTracks, 
+    RoomAudioRenderer,
+    ControlBar
+} from '@livekit/components-react';
+import { Track } from 'livekit-client';
+import '@livekit/components-styles';
 
 export default function WatchPartyRoom() {
   const { roomId } = useParams();
@@ -32,8 +41,24 @@ export default function WatchPartyRoom() {
   
   const recording = useRecording();
   
+  const [mediaToken, setMediaToken] = useState(null);
   const [activeScreenShare, setActiveScreenShare] = useState(null);
   const [showInviteModal, setShowInviteModal] = useState(false);
+
+  useEffect(() => {
+    if (roomType === 'live' && roomId) {
+      const tokenHeader = localStorage.getItem('token') ? { 'Authorization': `Bearer ${localStorage.getItem('token')}` } : {};
+      fetch(`/api/v1/rooms/${roomId}/token`, { headers: tokenHeader })
+        .then(res => res.json())
+        .then(data => {
+          const fetchedToken = data?.data?.token || data?.token;
+          if (fetchedToken) {
+            setMediaToken(fetchedToken);
+          }
+        })
+        .catch(err => console.error('SFU Core Handshake Initialization Error:', err));
+    }
+  }, [roomId, roomType]);
   const [showLeaveModal, setShowLeaveModal] = useState(false);
   const [isPipActive, setIsPipActive] = useState(false);
   const [activeTab, setActiveTab] = useState('grid'); // 'grid' | 'chat' | 'participants'
@@ -251,6 +276,35 @@ export default function WatchPartyRoom() {
   };
 
   const renderVideoArea = () => {
+    if (roomType === 'live') {
+      if (!mediaToken) {
+        return (
+          <div className="w-full h-full flex flex-col items-center justify-center bg-black text-white p-6 text-center">
+            <Loader className="w-8 h-8 text-primary animate-spin mb-4" />
+            <h3 className="text-lg font-bold mb-1">Establishing LiveKit SFU Infrastructure...</h3>
+            <p className="text-muted text-sm">Synchronizing media token with upstream SFU nodes.</p>
+          </div>
+        );
+      }
+      const livekitUrl = import.meta.env?.VITE_LIVEKIT_URL || "wss://your-livekit-server.com";
+      return (
+        <div className="w-full h-full bg-black relative flex flex-col overflow-hidden">
+          <LiveKitRoom
+            video={true}
+            audio={true}
+            token={mediaToken}
+            serverUrl={livekitUrl}
+            connectOptions={{ autoSubscribe: true }}
+            data-lk-theme="default"
+            style={{ height: '100%', width: '100%' }}
+          >
+            <VideoConference />
+            <RoomAudioRenderer />
+          </LiveKitRoom>
+        </div>
+      );
+    }
+
     if (effectiveScreenShareId) {
       return (
         <div 
