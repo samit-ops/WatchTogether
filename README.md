@@ -78,7 +78,7 @@ Modern media consumption is increasingly social, yet traditional streaming platf
 - **Razorpay Test Payment Integration**: Integrated Razorpay Checkout SDK supporting test credit cards, net banking, and UPI (`success@razorpay`).
 - **Cryptographic Signature Verification**: Server-side HMAC SHA256 signature verification ensuring payment authenticity.
 - **Automated Database Provisioning**: Instantly updates user subscription status, limits, and expiration dates upon payment verification.
-- **PDF Receipt & Email Confirmation**: Generates a branded PDF transaction invoice using `pdfkit` and emails it automatically to the user.
+- **PDF Invoice & Email Attachment**: Generates an official transaction invoice PDF using `pdfkit` and automatically dispatches it to the user's registered email address as an attached PDF file via Brevo HTTPS REST API.
 
 ### 5. 📺 Custom Video Player & Touch Gestures
 - **Modern Controls**: Custom play/pause, volume slider, mute toggle, picture-in-picture, playback rate modifier (0.5x – 2.0x), and fullscreen mode.
@@ -326,7 +326,7 @@ npm run build
 1. Click **Subscriptions** in the navigation drawer.
 2. Select Bronze, Silver, or Gold tier and click **Upgrade Plan**.
 3. Complete test checkout via Razorpay (use test card or `success@razorpay`).
-4. Once completed, your daily download limit will upgrade immediately, and a PDF receipt will be emailed to you.
+4. Once completed, your daily download limit will upgrade immediately, and an official transaction invoice will be sent directly to your registered email address with the attached PDF receipt file.
 5. Click **Download** on any video page to save it. View all downloads under **Profile -> Downloads**.
 
 ---
