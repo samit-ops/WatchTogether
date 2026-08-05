@@ -51,6 +51,10 @@ const handleParticipantLeave = async (io, socket, roomId) => {
       
       room.participants.splice(participantIndex, 1);
 
+      if (participant.isScreenSharing) {
+        io.to(roomId).emit('screen-share-stopped', { socketId: participant.socketId });
+      }
+
       const hostStillConnected = room.participants.some(p => getUserIdStr(p.user) === getUserIdStr(room.host));
       if (wasHost && !hostStillConnected && room.participants.length > 0) {
         room.participants.sort((a, b) => new Date(a.joinedAt) - new Date(b.joinedAt));
@@ -114,7 +118,8 @@ module.exports = (io, socket) => {
 
       const isHost = getUserIdStr(room.host) === userId;
 
-      if (room.isLocked && !isHost) {
+      const isExistingMember = room.participants.some(p => getUserIdStr(p.user) === userId);
+      if (room.isLocked && !isHost && !isExistingMember) {
         return socket.emit('error', { message: 'Room is locked' });
       }
 
@@ -123,10 +128,16 @@ module.exports = (io, socket) => {
 
       // 3. A participant is uniquely identified by its Socket.IO connection.
       const existingParticipant = room.participants.find(p => p.socketId === socket.id);
+      const disconnectedParticipant = room.participants.find(p =>
+        getUserIdStr(p.user) === userId && p.socketId && !io.sockets.sockets.has(p.socketId)
+      );
 
       if (existingParticipant) {
         existingParticipant.socketId = socket.id;
         if (isHost) existingParticipant.role = 'host';
+      } else if (disconnectedParticipant) {
+        disconnectedParticipant.socketId = socket.id;
+        if (isHost) disconnectedParticipant.role = 'host';
       } else {
         room.participants.push({
           user: socket.user._id || socket.user.id || socket.user,

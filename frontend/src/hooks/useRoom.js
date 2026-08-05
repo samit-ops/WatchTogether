@@ -57,11 +57,8 @@ export function useRoom(socket, roomId) {
         socket.emit('join-room', { roomId });
       };
 
-      if (socket.connected) {
-        emitJoin();
-      } else {
-        socket.once('connect', emitJoin);
-      }
+      socket.on('connect', emitJoin);
+      if (socket.connected) emitJoin();
       
       socket.on('participants-updated', (data) => {
         hasLiveParticipantsRef.current = true;
@@ -106,6 +103,7 @@ export function useRoom(socket, roomId) {
     return () => {
       mounted = false;
       if (socket && roomId) {
+        socket.off('connect', emitJoin);
         socket.off('participants-updated');
         socket.off('room-ended');
         socket.off('kicked');

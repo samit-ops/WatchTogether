@@ -137,7 +137,14 @@ export default function WatchPartyRoom() {
 
   useEffect(() => {
     if (effectiveScreenShareId && !isLocalScreenShare && screenShareVideoRef.current && currentScreenStream) {
-      screenShareVideoRef.current.srcObject = currentScreenStream;
+      const video = screenShareVideoRef.current;
+      if (video.srcObject !== currentScreenStream) {
+        video.srcObject = currentScreenStream;
+      }
+      video.play().catch(() => {
+        video.muted = true;
+        video.play().catch(e => console.error('[WebRTC] Screen share play error:', e));
+      });
     }
   }, [effectiveScreenShareId, isLocalScreenShare, currentScreenStream]);
 
