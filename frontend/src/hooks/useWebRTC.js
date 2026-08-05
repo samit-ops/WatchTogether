@@ -265,6 +265,10 @@ export function useWebRTC(socket, roomId, participants, currentSocketId) {
       console.log(`[WebRTC] Received answer from ${from}`);
       const peer = peersRef.current[from];
       if (peer) {
+        if (peer.signalingState !== 'have-local-offer') {
+          console.log(`[WebRTC] Skipping answer from ${from}: signalingState is '${peer.signalingState}' (expected 'have-local-offer')`);
+          return;
+        }
         try {
           await peer.setRemoteDescription(new RTCSessionDescription(sdp));
           drainPendingCandidates(from, peer);
